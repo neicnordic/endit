@@ -1,0 +1,37 @@
+ENDIT - Efficient Northern Dcache Interface to TSM
+
+Concept
+
+Use the same filesystem as an HSM staging area, using hardlinks to "store"
+data and then use batch processes to archive and restore data to/from tape.
+
+Configuration
+
+Since both store and retrieve uses the same filesystem for staging, you
+can't use the full filesystem size as poolsize to dcache. In fact, you
+need to have the poolsize small enough that the "maxusage" throttling
+parameter fits in the expression: poolsize << maxusage < fssize-poolsize.
+
+For store performance, it is good to have a fairly large gap between poolsize
+and maxusage, for restore performance it is good to have a large poolsize.
+My rule of thumb is to chop the filesystem into a third for poolsize and
+maxusage at 60%.
+
+Since this solution stores with a quick hardlink, the best dcache configuration
+is to store files into hsm as soon as possible. The batching into large stores
+needed for tape efficiency is done in archiver.pl.
+
+To get any efficiency in retrieves, you need to allow a large number of
+concurrent restores and have a long timeout for them.
+
+After starting dcache you also need to start the three scripts:
+tsmarchiver.pl
+tsmretriever.pl
+tsmdeleter.pl
+
+The recommended way is to start them >> 2>&1 a logfile each (for now).
+
+Collaboration
+
+It's all healthy perl, no icky surprises, I hope. Patches, suggestions, etc are
+most welcome.
