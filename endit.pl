@@ -12,9 +12,11 @@ use Digest::MD5 qw(md5_hex);
 
 ####################
 # Static parameters
-my $dir = "/data/dcache/";
+my $dir = "/grid/dcache/";
 my $pnfs = "/pnfs/hpc2n.umu.se/data/";
-my $logfile = "/var/log/tsmcp.log";
+# Don't use pnfs, use new interface
+$pnfs=undef; 
+my $logfile = "/var/log/dcache/endit.log";
 # Throttling for hsm put. $pool_size << $maxusage << $fs_size-$pool_size
 my $maxusage = 60; # Percent
 
@@ -25,7 +27,7 @@ sub printlog($) {
 	close LF;
 }
 
-printlog 'aetid.pl starting: ' . join (' ', @ARGV) . "\n";
+printlog 'endit.pl starting: ' . join (' ', @ARGV) . "\n";
 
 
 ####################
@@ -120,23 +122,29 @@ if($command eq 'put') {
 		printlog "Failed to link $filename to $dir/out/$pnfsid: $!\n";
 		exit 30;
 	}
-	if(open FH,'>',$pnfs . '/.(access)(/' . $pnfsid . ')(1)') {
-		if(!print FH "$store $group $pnfsid\n") {
-			printlog "write $pnfs/.(access)(/$pnfsid)(1) failed: $!\n";
+	if(defined $pnfs) {
+		# use old pnfs metadata
+		if(open FH,'>',$pnfs . '/.(access)(/' . $pnfsid . ')(1)') {
+			if(!print FH "$store $group $pnfsid\n") {
+				printlog "write $pnfs/.(access)(/$pnfsid)(1) failed: $!\n";
+				exit 34;
+			}
+			close FH;
+			# all is good..
+		} else {
+			printlog "opening $pnfs/.(access)(/$pnfsid)(1) failed: $!\n";
 			exit 34;
 		}
-		close FH;
-		# all is good..
+		if(open FH,'>',$pnfs.'/.(pset)('.$pnfsid.')(size)('. $size.')') {
+			close FH;
+			# all is good..
+		} else {
+			printlog "touch $pnfs/.(pset)($pnfsid)(size)($size) failed: $!\n";
+			exit 32;
+		}
 	} else {
-		printlog "opening $pnfs/.(access)(/$pnfsid)(1) failed: $!\n";
-		exit 34;
-	}
-	if(open FH,'>',$pnfs.'/.(pset)('.$pnfsid.')(size)('. $size.')') {
-		close FH;
-		# all is good..
-	} else {
-		printlog "touch $pnfs/.(pset)($pnfsid)(size)($size) failed: $!\n";
-		exit 32;
+		# new pnfs-free interface
+		print "osm://hpc2n.umu.se/?store=$store&group=$group&bfid=$pnfsid\n";
 	}
 }
 
