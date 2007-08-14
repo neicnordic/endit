@@ -24,6 +24,12 @@ needed for tape efficiency is done in archiver.pl.
 To get any efficiency in retrieves, you need to allow a large number of
 concurrent restores and have a long timeout for them.
 
+If you run multiple pools, you need to mount the "out" directories from
+all pools writing into TSM on all pools reading from TSM and define this
+in @remotedirs, otherwise there is a risk that a file will be incorrectly
+seen as unavailable in the interval between "endit.pl put" hardlinks and
+that the "tsmarchiver.pl" process has fully migrated it to tape.
+
 After starting dcache you also need to start the three scripts:
 tsmarchiver.pl
 tsmretriever.pl

@@ -6,6 +6,7 @@ use English;
 
 use Filesys::Statvfs;
 use File::Path;
+use File::Copy;
 use File::Basename;
 use Digest::MD5 qw(md5_hex);
 
@@ -19,6 +20,14 @@ $pnfs=undef;
 my $logfile = "/var/log/dcache/endit.log";
 # Throttling for hsm put. $pool_size << $maxusage << $fs_size-$pool_size
 my $maxusage = 60; # Percent
+
+# If we have multiple pool filesystems/nodes, we need to mount them
+# and list them here for remote cache steals
+my @remotedirs = ( $dir . "remote/miffo2/", $dir . "remote/mupp/");
+
+# Uncomment this for single-pool use and simpler codepath
+@remotedirs = ();
+
 
 sub printlog($) {
 	my $msg = shift;
@@ -188,6 +197,26 @@ if($command eq 'get') {
 		# printlog "Debug: link failed: $!\n";
 		# We are less lucky, have to get it from tape...
 	}
+
+	if(@remotedirs) {
+		# Check if it is in any of the remote caches
+		my $remote;
+		foreach $remote (@remotedirs) {
+			if(-f $remote . $pnfsid) {
+				if(copy($remote . $pnfsid, $dir . '/in/' . $pnfsid)) {
+					if(rename $dir . '/in/' . $pnfsid, $filename) {
+						exit 0;
+					} else {
+						printlog "mv $pnfsid $filename failed: $!\n";
+						exit 33;
+					}
+				} else {
+					printlog "Remote cache steal failed for $remote$pnfsid: $!\n";
+					unlink $filename;
+				}
+			}
+		}
+	}
 	
 	if(open FH,'>',$dir . '/request/' . $pnfsid) {
 		print FH "$PID $BASETIME\n";
@@ -218,7 +247,7 @@ if($command eq 'get') {
 		}
 		$insize = (stat $dir . '/in/' . $pnfsid)[7];
 	} until (defined $insize && $insize == $size);
-	
+
 	if(unlink $dir . '/request/' . $pnfsid) {
 		# all is well..
 	} else {
