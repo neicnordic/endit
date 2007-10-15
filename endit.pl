@@ -126,10 +126,13 @@ if($command eq 'put') {
 	}
 
 	if(link($filename,$dir . '/out/' . $pnfsid)) {
-		exit 0;
 	} else {
-		printlog "Failed to link $filename to $dir/out/$pnfsid: $!\n";
-		exit 30;
+		# If the file already exists in out/ it must have been migrated
+		# but dCache forgot about it, proceed to "success".
+		unless($!{EEXIST}) {
+			printlog "Failed to link $filename to $dir/out/$pnfsid: $!\n";
+			exit 30;
+		}
 	}
 	if(defined $pnfs) {
 		# use old pnfs metadata
@@ -198,17 +201,24 @@ if($command eq 'get') {
 		# We are less lucky, have to get it from tape...
 	}
 
+	my $insize;
 	if(@remotedirs) {
 		# Check if it is in any of the remote caches
 		my $remote;
 		foreach $remote (@remotedirs) {
 			if(-f $remote . $pnfsid) {
 				if(copy($remote . $pnfsid, $dir . '/in/' . $pnfsid)) {
-					if(rename $dir . '/in/' . $pnfsid, $filename) {
-						exit 0;
+					$insize = (stat $dir . '/in/' . $pnfsid)[7];
+					if(defined $insize && $insize == $size) {
+						if(rename $dir . '/in/' . $pnfsid, $filename) {
+							exit 0;
+						} else {
+							printlog "mv $pnfsid $filename failed: $!\n";
+							exit 33;
+						}
 					} else {
-						printlog "mv $pnfsid $filename failed: $!\n";
-						exit 33;
+						printlog "Copy of $remote$pnfsid returned 1, but had wrong size!\n";
+						unlink $filename;
 					}
 				} else {
 					printlog "Remote cache steal failed for $remote$pnfsid: $!\n";
@@ -227,7 +237,6 @@ if($command eq 'get') {
 		exit 32;
 	}
 	
-	my $insize;
 	do {
 		sleep 5;
 		my $errfile=$dir . '/request/' . $pnfsid . '.err';
