@@ -13,7 +13,7 @@ my $listfile = "/data/dcache/requestlist";
 while(1) {
 	sleep 60;
 	opendir(REQUEST,$dir . '/request/');
-	my (@requests) = grep { /^[0-9A-Fa-f]+/ } readdir(REQUEST);
+	my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST);
 	closedir(REQUEST);
 	next unless @requests;
 	open LF, ">", $listfile;
@@ -46,10 +46,10 @@ while(1) {
 				if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
 					# Went fine this time. Strange..
 				} else {
-					print localtime() . ": warning, dsmc retrieve error:\n";
+					print localtime() . ": warning, dsmc retrieve error on $outfile:\n";
 					print $err;
 					print $out;
-					open EF, ">", $req . '.err';
+					open EF, ">", $req . '.err' or warn "Could not open $req.err file: $!\n";
 					print EF "32\n";
 					close EF;
 				}
