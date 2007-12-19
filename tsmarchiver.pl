@@ -8,9 +8,23 @@ use POSIX qw(strftime);
 
 ####################
 # Static parameters
-my $dir = "/data/dcache/out/";
-my $minusage = 100; # Gigabytes
-my $timeout = 7200; # Seconds with less than $minusage - archive anyway
+&readconf('/opt/d-cache/endit/endit.conf');
+print "No timeout!\n" unless $conf{'timeout'};
+print "No minusage!\n" unless $conf{'minusage'};
+
+sub readconf($) {
+        my $conffile = shift;
+        my $key;
+        my $val;
+        open CF, '<'.$conffile or die "Can't open conffile: $!";
+        while(<CF>) {
+                next if $_ =~ /^#/;
+                ($key,$val) = split /: /;
+                next unless defined $val;
+                $conf{$key} = $val;
+        }
+}
+
 
 # Return filessystem usage (percent)
 sub getusage($) {
@@ -30,7 +44,7 @@ sub getusage($) {
 while(1) {
 	my $usage = getusage($dir);
 	my $timer = 0;
-	while ($usage<$minusage && $timer <$timeout) {
+	while ($usage<$conf{'minusage' && $timer <$conf{'timeout'}) {
 		# print "Only $usage used, sleeping a while (slept $timer)\n";
 		sleep 60;
 		$timer+=60;

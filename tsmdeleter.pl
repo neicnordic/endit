@@ -7,10 +7,24 @@ use IPC::Run3;
 
 ####################
 # Static parameters
-my $trashbase = "/opt/pnfsdb/pnfs/trash";
-my $trashdir = "$trashbase/1";
-my $filelist = "$trashbase/tsm-delete-files";
-my $basedir = "/data/dcache/out";
+my %conf;
+&readconf('/opt/d-cache/endit/endit.conf');
+die "No basedir!\n" unless $conf{'dir'};
+my $filelist = "$conf{'dir'}/tsm-delete-files";
+my $trashdir = "$conf{'dir'}/trash";
+
+sub readconf($) {
+        my $conffile = shift;
+        my $key;
+        my $val;
+        open CF, '<'.$conffile or die "Can't open conffile: $!";
+        while(<CF>) {
+                next if $_ =~ /^#/;
+                ($key,$val) = split /: /;
+                next unless defined $val;
+                $conf{$key} = $val;
+        }
+}
 
 while(1) {
 	my @files = ();
@@ -20,7 +34,7 @@ while(1) {
 	if (@files > 0) {
 		unlink $filelist;
 		open(FL, ">$filelist");
-		print FL map { "$basedir/$_\n"; } @files;
+		print FL map { "$conf{'dir'}/out/$_\n"; } @files;
 		close(FL);
 		my($out, $err);
 		my @cmd = ('dsmc','delete','archive','-noprompt',

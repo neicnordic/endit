@@ -13,25 +13,27 @@ use Digest::MD5 qw(md5_hex);
 
 ####################
 # Static parameters
-my $dir = "/grid/dcache/";
-my $pnfs = "/pnfs/hpc2n.umu.se/data/";
-# Don't use pnfs, use new interface
-$pnfs=undef; 
-my $logfile = "/var/log/dcache/endit.log";
-# Throttling for hsm put. $pool_size << $maxusage << $fs_size-$pool_size
-my $maxusage = 60; # Percent
+my %conf;
+&readconf('/opt/d-cache/endit/endit.conf');
+die "No basedir!\n" unless $conf{'dir'};
+warn "No logfile!\n" unless $conf{'logfile'};
 
-# If we have multiple pool filesystems/nodes, we need to mount them
-# and list them here for remote cache steals
-my @remotedirs = ( $dir . "remote/miffo2/", $dir . "remote/mupp/");
-
-# Uncomment this for single-pool use and simpler codepath
-@remotedirs = ();
-
+sub readconf($) {
+	my $conffile = shift;
+	my $key;
+	my $val;
+	open CF, '<'.$conffile or die "Can't open conffile: $!";
+	while(<CF>) {
+		next if $_ =~ /^#/;
+		($key,$val) = split /: /;
+		next unless defined $val;
+		$conf{$key} = $val;
+	}
+}
 
 sub printlog($) {
 	my $msg = shift;
-	open LF, '>>' . $logfile;
+	open LF, '>>' . $conf{'logfile'};
 	print LF $msg;
 	close LF;
 }
@@ -41,9 +43,18 @@ printlog 'endit.pl starting: ' . join (' ', @ARGV) . "\n";
 
 ####################
 # Arguments
-my $command = shift; # get|put
-my $pnfsid = shift;
-my $filename = shift;
+my $command = shift; # get|put|remove
+my $pnfsid;
+my $filename;
+if($command eq 'get' or $command eq 'put') {
+	$pnfsid = shift;
+	$filename = shift;
+	if(!defined($filename)) {
+        	printlog "Argument error, too few arguments for $command.\n";
+        	exit 35;
+	}
+}
+
 my %options;
 
 foreach my $opt (@ARGV) {
@@ -51,13 +62,18 @@ foreach my $opt (@ARGV) {
 		or printlog "Warning: Bad argument $opt\n";
 }
 
-if(!defined($filename)) {
-        printlog "Argument error, too few arguments.\n";
-        exit 35;
+if($command eq 'get' and !defined($options{'si'})) {
+	printlog "Argument error: lacking si for get.\n";
+	exit 35;
 }
 
-if(!defined($options{'si'})) {
-	printlog "Argument error: lacking si.\n";
+if($command eq 'put' and !defined($options{'si'})) {
+	printlog "Argument error: lacking si for put.\n";
+	exit 35;
+}
+
+if($command eq 'remove' and !defined($options{'uri'})) {
+	printlog "Argument error: lacking uri for remove.\n";
 	exit 35;
 }
 
@@ -100,10 +116,27 @@ sub dirhash() {
 	return $hash;
 }
 
+if($command eq 'remove') {
+# uri: print "osm://hpc2n.umu.se/?store=$store&group=$group&bfid=$pnfsid\n";
+	my $pnfsid = $1 if $options{'uri'}  =~ /.*bfid=(\w+)/;
+	if(!defined($pnfsid)) {
+		printlog "couldn't parse $options{'uri'}\n";
+		exit 32;
+	if(open FH,'>',$conf{'dir'} . '/trash/' . $pnfsid) {
+		print FH "$options{'uri'}\n";
+		close FH;
+		# all is good..
+	} else {
+		printlog "touch $conf{'dir'}/request/$pnfsid failed: $!\n";
+		exit 32;
+	}
+}
+
 if($command eq 'put') {
+	my $dir = $conf{'dir'};
 	my $usage = getusage($dir);
-	while ($usage>$maxusage) {
-		printlog "$usage used, sleeping until less than $maxusage\n";
+	while ($usage>$conf{'maxusage'}) {
+		printlog "$usage used, sleeping until less than $conf{'maxusage'}\n";
 		sleep 60;
 		$usage = getusage($dir);
 	}
@@ -134,7 +167,8 @@ if($command eq 'put') {
 			exit 30;
 		}
 	}
-	if(defined $pnfs) {
+	if(defined $conf{'pnfs'}) {
+		my $pnfs = $conf{'pnfs'};
 		# use old pnfs metadata
 		if(open FH,'>',$pnfs . '/.(access)(/' . $pnfsid . ')(1)') {
 			if(!print FH "$store $group $pnfsid\n") {
@@ -164,6 +198,7 @@ if($command eq 'get') {
 	my $si = $options{'si'};
 
 	my $dirname = dirname($filename);
+	my $dir = $conf{'dir'};
 
 	# Now we need size out of $si
 	my $size;
@@ -188,7 +223,7 @@ if($command eq 'get') {
 	if(! -d $dirname) {
          	eval { mkpath($dirname) };
          	if ($@) {
-			printlog "Couldn't create $dir: $@\n";
+			printlog "Couldn't create $dirname: $@\n";
 			exit 32;
          	}
 	}
@@ -202,9 +237,10 @@ if($command eq 'get') {
 	}
 
 	my $insize;
-	if(@remotedirs) {
+	if(defined $conf{'remotedirs'}) {
 		# Check if it is in any of the remote caches
 		my $remote;
+		my @remotedirs = split / /, $conf{'remotedirs'};
 		foreach $remote (@remotedirs) {
 			if(-f $remote . $pnfsid) {
 				if(copy($remote . $pnfsid, $dir . '/in/' . $pnfsid)) {

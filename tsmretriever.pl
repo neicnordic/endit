@@ -7,8 +7,24 @@ use IPC::Run3;
 
 ####################
 # Static parameters
-my $dir = "/data/dcache/";
-my $listfile = "/data/dcache/requestlist";
+my %conf;
+&readconf('/opt/d-cache/endit/endit.conf');
+die "No basedir!\n" unless $conf{'dir'};
+my $dir = $conf{'dir'};
+my $listfile = $dir . 'requestlist';
+
+sub readconf($) {
+        my $conffile = shift;
+        my $key;
+        my $val;
+        open CF, '<'.$conffile or die "Can't open conffile: $!";
+        while(<CF>) {
+                next if $_ =~ /^#/;
+                ($key,$val) = split /: /;
+                next unless defined $val;
+                $conf{$key} = $val;
+        }
+}
 
 while(1) {
 	sleep 60;
