@@ -39,7 +39,8 @@ while(1) {
 	}
 	close LF;
 	my $indir = $dir . '/in/';
-	my @cmd = ('dsmc','retrieve', "-filelist=$listfile",$indir);
+	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	my @cmd = ('dsmc','retrieve',@dsmcopts, "-filelist=$listfile",$indir);
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		# files migrated from tape without issue
@@ -57,7 +58,7 @@ while(1) {
 			chomp $filename;
 			my $req = $dir . '/request/' . $filename;
 			if( -e $req ) {
-				my @cmd = ('dsmc','retrieve',$outfile,$indir);
+				my @cmd = ('dsmc','retrieve',@dsmcopts,$outfile,$indir);
 				my ($out,$err);
 				if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
 					# Went fine this time. Strange..

@@ -37,8 +37,9 @@ while(1) {
 		print FL map { "$conf{'dir'}/out/$_\n"; } @files;
 		close(FL);
 		my($out, $err);
+		my @dsmcopts = split /, /, $conf{'dsmcopts'};
 		my @cmd = ('dsmc','delete','archive','-noprompt',
-			"-filelist=$filelist");
+			@dsmcopts,"-filelist=$filelist");
 		if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 			print $out;
 			# files removed from tape without issue

@@ -8,6 +8,7 @@ use POSIX qw(strftime);
 
 ####################
 # Static parameters
+my %conf;
 &readconf('/opt/d-cache/endit/endit.conf');
 print "No timeout!\n" unless $conf{'timeout'};
 print "No minusage!\n" unless $conf{'minusage'};
@@ -42,9 +43,10 @@ sub getusage($) {
 }
 
 while(1) {
+	my $dir = $conf{'dir'};
 	my $usage = getusage($dir);
 	my $timer = 0;
-	while ($usage<$conf{'minusage' && $timer <$conf{'timeout'}) {
+	while ($usage<$conf{'minusage'} && $timer <$conf{'timeout'}) {
 		# print "Only $usage used, sleeping a while (slept $timer)\n";
 		sleep 60;
 		$timer+=60;
@@ -52,8 +54,9 @@ while(1) {
 	}
 
 	my $date=strftime "%Y%m",localtime;
-	my @cmd = ('dsmc','archive','-v2archive','-deletefiles',
-		"-description=$date","$dir/*");
+	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	my @cmd = ('dsmc','archive','-v2archive','-deletefiles', @dsmcopts,
+		'-deletefiles',"-description=$date","$dir/*");
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		# print $out;
