@@ -1,0 +1,15 @@
+0. Setup TSM so that the user running dcache can "dsmc archive" and "dsmc
+   retrieve" files. If you want to have several pool-nodes talking to tape,
+   you probably want to setup a TSM node that you can share accross machines.
+1. Unpack the tarball and put the perl script in an appropriate place,
+   in this text file it is assumed they go into $DCACHE_LOCATION/jobs/
+2. Create the filesystem for the pool ($fs in this file)
+3. In the filesystem create directory the directories "pool", "in", "out",
+   "request", and "remote".
+4. For a pool that writes into HSM, define the dcache pool_size to be
+   about 30% of the filesystem size. For a pool that only reads from tape
+   the "normal" size of almost the whole fs is appropriate. Define a
+   dcache pool with this size on $fs/pool/.
+5. Adjust the paths etc in the congfig file to match the install.
+6. Start tsmarchiver.pl and tsmretriever.pl in the background.
+7. Register endit.pl as an osm tape interface in dcache.
