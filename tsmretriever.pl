@@ -8,7 +8,7 @@ use IPC::Run3;
 ####################
 # Static parameters
 my %conf;
-&readconf('/opt/d-cache/endit/endit.conf');
+&readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
 my $dir = $conf{'dir'};
 my $listfile = $dir . 'requestlist';

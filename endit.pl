@@ -14,7 +14,7 @@ use Digest::MD5 qw(md5_hex);
 ####################
 # Static parameters
 my %conf;
-&readconf('/opt/d-cache/endit/endit.conf');
+&readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
 warn "No logfile!\n" unless $conf{'logfile'};
 

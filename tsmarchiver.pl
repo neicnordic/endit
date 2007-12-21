@@ -9,7 +9,7 @@ use POSIX qw(strftime);
 ####################
 # Static parameters
 my %conf;
-&readconf('/opt/d-cache/endit/endit.conf');
+&readconf('/opt/endit/endit.conf');
 print "No timeout!\n" unless $conf{'timeout'};
 print "No minusage!\n" unless $conf{'minusage'};
 
