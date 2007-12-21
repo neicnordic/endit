@@ -25,6 +25,7 @@ sub readconf($) {
 	open CF, '<'.$conffile or die "Can't open conffile: $!";
 	while(<CF>) {
 		next if $_ =~ /^#/;
+		chomp;
 		($key,$val) = split /: /;
 		next unless defined $val;
 		$conf{$key} = $val;
