@@ -122,6 +122,7 @@ if($command eq 'remove') {
 	if(!defined($pnfsid)) {
 		printlog "couldn't parse $options{'uri'}\n";
 		exit 32;
+	}
 	if(open FH,'>',$conf{'dir'} . '/trash/' . $pnfsid) {
 		print FH "$options{'uri'}\n";
 		close FH;
