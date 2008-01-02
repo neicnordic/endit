@@ -192,8 +192,15 @@ if($command eq 'put') {
 		}
 	} else {
 		# new pnfs-free interface
-		printlog "osm://hpc2n.umu.se/?store=$store&group=$group&bfid=$pnfsid\n";
-		print "osm://hpc2n.umu.se/?store=$store&group=$group&bfid=$pnfsid\n";
+		my $hsminstance;
+		if(defined($conf{'hsminstance'})) {
+			$hsminstance=$conf{'hsminstance'};
+		} else {
+			$hsminstance=`hostname -d`;
+			chomp $hsminstance;
+		}
+		printlog "osm://$hsminstance/?store=$store&group=$group&bfid=$pnfsid\n";
+		print "osm://$hsminstance/?store=$store&group=$group&bfid=$pnfsid\n";
 	}
 }
 
