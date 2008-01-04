@@ -51,6 +51,13 @@ while(1) {
 			}
 		} else {
 			# something went wrong. log and hope for better luck next time?
+			# ANS1345E - file already deleted
+			my @outl = split /\n/m, $out;
+			my @errorcodes = grep (/^ANS/, @outl);
+			my $error;
+			foreach $error (@errorcodes) {
+				print "error: $error\n";
+			}
 			print localtime() . ": warning, dsmc remove archive failure: $!\n";
 			print $err;
 			print $out;
