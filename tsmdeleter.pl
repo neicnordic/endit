@@ -50,13 +50,15 @@ while(1) {
 			}
 		} else {
 			# something went wrong. log and hope for better luck next time?
+
 			# unless all is: ANS1345E - file already deleted
+			# or ANS1302E - all files already deleted
 			my @outl = split /\n/m, $out;
 			my @errorcodes = grep (/^ANS/, @outl);
 			my $error;
 			my $reallybroken=0;
 			foreach $error (@errorcodes) {
-				if($error =~ /^ANS1345E/) {
+				if($error =~ /^ANS1345E/ or $error =~ /^ANS1302E/) {
 					print "File already deleted:\n$error\n";
 				} else {
 					$reallybroken=1;
