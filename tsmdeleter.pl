@@ -42,7 +42,6 @@ while(1) {
 		my @cmd = ('dsmc','delete','archive','-noprompt',
 			@dsmcopts,"-filelist=$filelist");
 		if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-			print $out;
 			# files removed from tape without issue
 			my $ndel = unlink map { "$trashdir/$_"; } @files;
 			if ( $ndel != @files ) {
@@ -51,16 +50,30 @@ while(1) {
 			}
 		} else {
 			# something went wrong. log and hope for better luck next time?
-			# ANS1345E - file already deleted
+			# unless all is: ANS1345E - file already deleted
 			my @outl = split /\n/m, $out;
 			my @errorcodes = grep (/^ANS/, @outl);
 			my $error;
+			my $reallybroken=0;
 			foreach $error (@errorcodes) {
-				print "error: $error\n";
+				if($error =~ /^ANS1345E/) {
+					print "File already deleted:\n$error\n";
+				} else {
+					$reallybroken=1;
+				}
+			
 			}
-			print localtime() . ": warning, dsmc remove archive failure: $!\n";
-			print $err;
-			print $out;
+			if($reallybroken) {
+				print localtime() . ": warning, dsmc remove archive failure: $!\n";
+				print $err;
+				print $out;
+			} else {
+				my $ndel = unlink map { "$trashdir/$_"; } @files;
+				if ( $ndel != @files ) {
+					print localtime() . ": warning, unlink of tsm deleted files failed: $!\n";
+					rename $filelist, $filelist."failedunlink";
+				}
+			}
 		}
 	}
 
