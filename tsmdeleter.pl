@@ -45,6 +45,7 @@ while(1) {
 			# files removed from tape without issue
 			my $ndel = unlink map { "$trashdir/$_"; } @files;
 			if ( $ndel != @files ) {
+				print $out;
 				print localtime() . ": warning, unlink of tsm deleted files failed: $!\n";
 				rename $filelist, $filelist."failedunlink";
 			}
