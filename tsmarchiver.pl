@@ -44,7 +44,7 @@ sub getusage($) {
 }
 
 while(1) {
-	my $dir = $conf{'dir'};
+	my $dir = $conf{'dir'} . '/out/';
 	my $usage = getusage($dir);
 	my $timer = 0;
 	while ($usage<$conf{'minusage'} && $timer <$conf{'timeout'}) {
