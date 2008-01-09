@@ -79,36 +79,36 @@ if($command eq 'remove' and !defined($options{'uri'})) {
 }
 
 # Return filessystem usage (gigabytes)
-#sub getusage($) {
-#        my $dir = shift;
-#        my ($out,$err,$size);
-#        my @cmd = ('du','-ks',$dir);
-#        if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
-#                ($size, undef) = split ' ',$out;
-#        } else {
-#                # failed to run du, error out.
-#                printlog "failed to run du: $err\n";
-#                exit 35;
-#        }
-#        return $size/1024/1024;
-#}
+sub getusage($) {
+        my $dir = shift;
+        my ($out,$err,$size);
+        my @cmd = ('du','-ks',$dir);
+        if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
+                ($size, undef) = split ' ',$out;
+        } else {
+                # failed to run du, error out.
+                printlog "failed to run du: $err\n";
+                exit 35;
+        }
+        return $size/1024/1024;
+}
 
 # Return filessystem usage (percent)
-sub getusage($) {
-	my $dir = shift;
-	my($bsize, $frsize, $blocks, $bfree, $bavail, $files, $ffree, $favail,
-		$fsid, $basetype, $flag, $namemax, $fstr) = statvfs($dir);
-
-	if(!defined($bsize)) {
-		printlog "Unable to statvfs $dir: $!\n";
-		exit 35;
-	}
-
-	my $fssize = $frsize * $blocks;
-	my $fsfree = $frsize * $bavail;
-
-	return (($fssize-$fsfree)/$fssize)*100;
-}
+#sub getusage($) {
+#	my $dir = shift;
+#	my($bsize, $frsize, $blocks, $bfree, $bavail, $files, $ffree, $favail,
+#		$fsid, $basetype, $flag, $namemax, $fstr) = statvfs($dir);
+#
+#	if(!defined($bsize)) {
+#		printlog "Unable to statvfs $dir: $!\n";
+#		exit 35;
+#	}
+#
+#	my $fssize = $frsize * $blocks;
+#	my $fsfree = $frsize * $bavail;
+#
+#	return (($fssize-$fsfree)/$fssize)*100;
+#}
 
 # Based on the text (typically pnfsid), return a number on an even spread
 # between 0 and n-1. Based on the last $chars of the md5 in hex.
