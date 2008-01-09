@@ -78,6 +78,21 @@ if($command eq 'remove' and !defined($options{'uri'})) {
 	exit 35;
 }
 
+# Return filessystem usage (gigabytes)
+#sub getusage($) {
+#        my $dir = shift;
+#        my ($out,$err,$size);
+#        my @cmd = ('du','-ks',$dir);
+#        if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
+#                ($size, undef) = split ' ',$out;
+#        } else {
+#                # failed to run du, error out.
+#                printlog "failed to run du: $err\n";
+#                exit 35;
+#        }
+#        return $size/1024/1024;
+#}
+
 # Return filessystem usage (percent)
 sub getusage($) {
 	my $dir = shift;
@@ -137,9 +152,10 @@ if($command eq 'remove') {
 if($command eq 'put') {
 	my $dir = $conf{'dir'};
 	my $usage = getusage($dir);
+	$conf{'pollinginterval'} = 300 unless $conf{'pollinginterval'};
 	while ($usage>$conf{'maxusage'}) {
-		printlog "$usage used, sleeping until less than $conf{'maxusage'}\n";
-		sleep 60;
+		printlog "$usage used, sleeping until less than $conf{'maxusage'}\n" if $conf{'verbose'};
+		sleep $conf{'pollinginterval'};
 		$usage = getusage($dir);
 	}
 	
@@ -199,7 +215,7 @@ if($command eq 'put') {
 			$hsminstance=`hostname -d`;
 			chomp $hsminstance;
 		}
-		printlog "osm://$hsminstance/?store=$store&group=$group&bfid=$pnfsid\n";
+		printlog "osm://$hsminstance/?store=$store&group=$group&bfid=$pnfsid\n" if $conf{'verbose'};
 		print "osm://$hsminstance/?store=$store&group=$group&bfid=$pnfsid\n";
 	}
 }

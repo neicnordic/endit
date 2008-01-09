@@ -28,7 +28,7 @@ sub readconf($) {
 }
 
 
-# Return filessystem usage (percent)
+# Return filessystem usage (gigabytes)
 sub getusage($) {
 	my $dir = shift;
 	my ($out,$err,$size);
@@ -60,7 +60,7 @@ while(1) {
 		'-deletefiles',"-description=$date","$dir/*");
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		# print $out;
+		print $out if $conf{'verbose'};
 		# files migrated to tape without issue
 	} else {
 		# something went wrong. log and hope for better luck next time?
