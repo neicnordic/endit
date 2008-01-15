@@ -17,7 +17,7 @@ use Digest::MD5 qw(md5_hex);
 my %conf;
 &readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
-warn "No logfile!\n" unless $conf{'logfile'};
+warn "No logdir!\n" unless $conf{'logdir'};
 
 sub readconf($) {
 	my $conffile = shift;
@@ -35,7 +35,7 @@ sub readconf($) {
 
 sub printlog($) {
 	my $msg = shift;
-	open LF, '>>' . $conf{'logfile'};
+	open LF, '>>' . $conf{'logdir'} . '/endit.log';
 	print LF $msg;
 	close LF;
 }
