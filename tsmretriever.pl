@@ -13,6 +13,14 @@ die "No basedir!\n" unless $conf{'dir'};
 my $dir = $conf{'dir'};
 my $listfile = $dir . '/requestlist';
 
+sub printlog($) {
+	my $msg = shift;
+	open LF, '>>' . $conf{'logdir'} . '/tsmretriever.log' ;
+	print LF $msg;
+	close LF;
+}
+
+
 sub readconf($) {
         my $conffile = shift;
         my $key;
@@ -64,9 +72,9 @@ while(1) {
 				if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
 					# Went fine this time. Strange..
 				} else {
-					print localtime() . ": warning, dsmc retrieve error on $outfile:\n";
-					print $err;
-					print $out;
+					printlog localtime() . ": warning, dsmc retrieve error on $outfile:\n";
+					printlog $err;
+					printlog $out;
 					open EF, ">", $req . '.err' or warn "Could not open $req.err file: $!\n";
 					print EF "32\n";
 					close EF;

@@ -6,12 +6,20 @@ use strict;
 use IPC::Run3;
 use POSIX qw(strftime);
 
+sub printlog($) {
+	my $msg = shift;
+	open LF, '>>' . $conf{'logdir'} . '/tsmarchiver.log';
+	print LF $msg;
+	close LF;
+}
+
+
 ####################
 # Static parameters
 my %conf;
 &readconf('/opt/endit/endit.conf');
-print "No timeout!\n" unless $conf{'timeout'};
-print "No minusage!\n" unless $conf{'minusage'};
+printlog "No timeout!\n" unless $conf{'timeout'};
+printlog "No minusage!\n" unless $conf{'minusage'};
 
 sub readconf($) {
         my $conffile = shift;
@@ -37,7 +45,9 @@ sub getusage($) {
 		($size, undef) = split ' ',$out;
 	} else {
 		# failed to run du, return 0 for graceful degradation.
-		print "failed to run du: $err\n";
+		printlog "failed to run du:\n";
+		printlog $out;
+		printlog $err;
 		$size=0;
 	}
 	return $size/1024/1024;
@@ -60,12 +70,12 @@ while(1) {
 		'-deletefiles',"-description=$date","$dir/*");
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		print $out if $conf{'verbose'};
+		printlog $out if $conf{'verbose'};
 		# files migrated to tape without issue
 	} else {
 		# something went wrong. log and hope for better luck next time?
-		print localtime() . ": warning, dsmc archive failure: $!\n";
-		print $err;
-		print $out;
+		printlog localtime() . ": warning, dsmc archive failure: $!\n";
+		printlog $err;
+		printlog $out;
 	}
 }

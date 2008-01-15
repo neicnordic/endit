@@ -5,6 +5,14 @@ use strict;
 
 use IPC::Run3;
 
+sub printlog($) {
+	my $msg = shift;
+	open LF, '>>' . $conf{'logdir'} . '/tsmdeleter.log';
+	print LF $msg;
+	close LF;
+}
+
+
 ####################
 # Static parameters
 my %conf;
@@ -45,8 +53,8 @@ while(1) {
 			# files removed from tape without issue
 			my $ndel = unlink map { "$trashdir/$_"; } @files;
 			if ( $ndel != @files ) {
-				print $out;
-				print localtime() . ": warning, unlink of tsm deleted files failed: $!\n";
+				printlog $out;
+				printlog localtime() . ": warning, unlink of tsm deleted files failed: $!\n";
 				rename $filelist, $filelist."failedunlink";
 			}
 		} else {
@@ -60,20 +68,20 @@ while(1) {
 			my $reallybroken=0;
 			foreach $error (@errorcodes) {
 				if($error =~ /^ANS1345E/ or $error =~ /^ANS1302E/) {
-					print "File already deleted:\n$error\n";
+					printlog "File already deleted:\n$error\n";
 				} else {
 					$reallybroken=1;
 				}
 			
 			}
 			if($reallybroken) {
-				print localtime() . ": warning, dsmc remove archive failure: $!\n";
-				print $err;
-				print $out;
+				printlog localtime() . ": warning, dsmc remove archive failure: $!\n";
+				printlog $err;
+				printlog $out;
 			} else {
 				my $ndel = unlink map { "$trashdir/$_"; } @files;
 				if ( $ndel != @files ) {
-					print localtime() . ": warning, unlink of tsm deleted files failed: $!\n";
+					printlog localtime() . ": warning, unlink of tsm deleted files failed: $!\n";
 					rename $filelist, $filelist."failedunlink";
 				}
 			}
