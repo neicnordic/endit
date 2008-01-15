@@ -6,6 +6,12 @@ use strict;
 use IPC::Run3;
 use POSIX qw(strftime);
 
+
+####################
+# Static parameters
+my %conf;
+&readconf('/opt/endit/endit.conf');
+
 sub printlog($) {
 	my $msg = shift;
 	open LF, '>>' . $conf{'logdir'} . '/tsmarchiver.log';
@@ -13,13 +19,9 @@ sub printlog($) {
 	close LF;
 }
 
-
-####################
-# Static parameters
-my %conf;
-&readconf('/opt/endit/endit.conf');
 printlog "No timeout!\n" unless $conf{'timeout'};
 printlog "No minusage!\n" unless $conf{'minusage'};
+
 
 sub readconf($) {
         my $conffile = shift;

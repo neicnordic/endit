@@ -5,13 +5,6 @@ use strict;
 
 use IPC::Run3;
 
-sub printlog($) {
-	my $msg = shift;
-	open LF, '>>' . $conf{'logdir'} . '/tsmdeleter.log';
-	print LF $msg;
-	close LF;
-}
-
 
 ####################
 # Static parameters
@@ -20,6 +13,13 @@ my %conf;
 die "No basedir!\n" unless $conf{'dir'};
 my $filelist = "$conf{'dir'}/tsm-delete-files";
 my $trashdir = "$conf{'dir'}/trash";
+
+sub printlog($) {
+	my $msg = shift;
+	open LF, '>>' . $conf{'logdir'} . '/tsmdeleter.log';
+	print LF $msg;
+	close LF;
+}
 
 sub readconf($) {
         my $conffile = shift;
