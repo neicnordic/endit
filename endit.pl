@@ -152,12 +152,12 @@ if($command eq 'remove') {
 
 if($command eq 'put') {
 	my $dir = $conf{'dir'};
-	my $usage = getusage($dir);
+	my $usage = getusage($dir . '/out/');
 	$conf{'pollinginterval'} = 300 unless $conf{'pollinginterval'};
 	while ($usage>$conf{'maxusage'}) {
 		printlog "$usage used, sleeping until less than $conf{'maxusage'}\n" if $conf{'verbose'};
 		sleep $conf{'pollinginterval'};
-		$usage = getusage($dir);
+		$usage = getusage($dir . '/out/');
 	}
 	
 	my $size;

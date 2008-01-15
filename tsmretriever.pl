@@ -11,7 +11,7 @@ my %conf;
 &readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
 my $dir = $conf{'dir'};
-my $listfile = $dir . 'requestlist';
+my $listfile = $dir . '/requestlist';
 
 sub readconf($) {
         my $conffile = shift;
