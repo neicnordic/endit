@@ -140,6 +140,9 @@ if($command eq 'remove') {
 		printlog "couldn't parse $options{'uri'}\n";
 		exit 32;
 	}
+	if(-f $conf{'dir'} . '/out/' . $pnfsid) {
+		unlink $conf{'dir'} . '/out/' . $pnfsid;
+	}
 	if(open FH,'>',$conf{'dir'} . '/trash/' . $pnfsid) {
 		print FH "$options{'uri'}\n";
 		close FH;
