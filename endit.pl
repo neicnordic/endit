@@ -87,9 +87,10 @@ sub getusage($) {
         if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
                 ($size, undef) = split ' ',$out;
         } else {
-                # failed to run du, error out.
+                # failed to run du, probably just a disappearing file.
                 printlog "failed to run du: $err\n";
-                exit 35;
+		# Return > maxusage to try again in a minute or two
+                return $conf{'maxusge'} + 1024;
         }
         return $size/1024/1024;
 }
