@@ -49,7 +49,7 @@ while(1) {
 	close LF;
 	my $indir = $dir . '/in/';
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
-	my @cmd = ('dsmc','retrieve','replace=no',@dsmcopts, "-filelist=$listfile",$indir);
+	my @cmd = ('dsmc','retrieve','-replace=no',@dsmcopts, "-filelist=$listfile",$indir);
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		# files migrated from tape without issue
