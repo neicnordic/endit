@@ -20,6 +20,23 @@ sub printlog($) {
 	close LF;
 }
 
+sub checkrequest($) {
+	my $req=shift;
+	my $rf = $conf{'dir'} . '/request/' . $req;
+	my $pid;
+	open RF, $rf;
+	while(<RF>) {
+		$pid = $1 if $_ =~ /(\d+) (\d+)/;
+	}
+	if(getpgrp($pid) > 0) {
+		return 1;
+	} else {
+		unlink $rf;
+		return 0;
+	}
+}
+	
+
 
 sub readconf($) {
         my $conffile = shift;
@@ -44,7 +61,9 @@ while(1) {
 	open LF, ">", $listfile;
 	my $req;
 	foreach $req (@requests) {
-		print LF "$dir/out/$req\n";
+		if(checkrequest($req)) {
+			print LF "$dir/out/$req\n";
+		}
 	}
 	close LF;
 	my $indir = $dir . '/in/';
