@@ -63,6 +63,8 @@ while(1) {
 	foreach $req (@requests) {
 		if(checkrequest($req)) {
 			print LF "$dir/out/$req\n";
+		} else {
+			printlog "Deactivating $req due to unexisting pid\n";
 		}
 	}
 	close LF;
