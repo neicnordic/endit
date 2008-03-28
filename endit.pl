@@ -10,6 +10,7 @@ use File::Copy;
 use File::Basename;
 use IPC::Run3;
 use Digest::MD5 qw(md5_hex);
+use POSIX qw(strftime);
 
 
 ####################
@@ -35,8 +36,9 @@ sub readconf($) {
 
 sub printlog($) {
 	my $msg = shift;
-	open LF, '>>' . $conf{'logdir'} . '/endit.log';
-	print LF $msg;
+	my $now = strftime '+%Y-%m-%d %H:%M:%S', localtime;
+	open LF, '>>' . $conf{'logdir'} . '/endit.log' or warn "Failed to open " . $conf{'logdir'} . '/endit.log' . ": $!";
+	print LF $now . ': ' . $msg;
 	close LF;
 }
 

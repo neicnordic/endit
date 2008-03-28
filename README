@@ -10,12 +10,13 @@ Configuration
 Since both store and retrieve uses the same filesystem for staging, you
 can't use the full filesystem size as poolsize to dcache. In fact, you
 need to have the poolsize small enough that the "maxusage" throttling
-parameter fits in the expression: poolsize << maxusage < fssize-poolsize.
+parameter fits in the expression:
+$pool_size + $maxusage + sum(other pools) << $fs_size
 
 For store performance, it is good to have a fairly large gap between poolsize
 and maxusage, for restore performance it is good to have a large poolsize.
 My rule of thumb is to chop the filesystem into a third for poolsize and
-maxusage at 60%.
+maxusage at most of the remaining space.
 
 Since this solution stores with a quick hardlink, the best dcache configuration
 is to store files into hsm as soon as possible. The batching into large stores
@@ -34,8 +35,6 @@ After starting dcache you also need to start the three scripts:
 tsmarchiver.pl
 tsmretriever.pl
 tsmdeleter.pl
-
-The recommended way is to start them >> 2>&1 a logfile each (for now).
 
 Collaboration
 
