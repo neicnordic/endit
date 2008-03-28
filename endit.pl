@@ -36,7 +36,7 @@ sub readconf($) {
 
 sub printlog($) {
 	my $msg = shift;
-	my $now = strftime '+%Y-%m-%d %H:%M:%S', localtime;
+	my $now = strftime '%Y-%m-%d %H:%M:%S', localtime;
 	open LF, '>>' . $conf{'logdir'} . '/endit.log' or warn "Failed to open " . $conf{'logdir'} . '/endit.log' . ": $!";
 	print LF $now . ': ' . $msg;
 	close LF;
