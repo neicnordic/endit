@@ -1,0 +1,4 @@
+Servername hpc2n_tsm
+VIRTUALMountpoint /grid/pool/out
+FOLlowsymbolic yes
+quiet
