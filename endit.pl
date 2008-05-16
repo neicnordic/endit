@@ -151,7 +151,7 @@ if($command eq 'remove') {
 		close FH;
 		# all is good..
 	} else {
-		printlog "touch $conf{'dir'}/request/$pnfsid failed: $!\n";
+		printlog "touch $conf{'dir'}/trash/$pnfsid failed: $!\n";
 		exit 32;
 	}
 }
