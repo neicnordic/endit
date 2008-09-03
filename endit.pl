@@ -275,8 +275,8 @@ if($command eq 'get') {
 		my $remote;
 		my @remotedirs = split / /, $conf{'remotedirs'};
 		foreach $remote (@remotedirs) {
-			if(-f $remote . $pnfsid) {
-				if(copy($remote . $pnfsid, $dir . '/in/' . $pnfsid)) {
+			if(-f $remote . '/' . $pnfsid) {
+				if(copy($remote . '/' . $pnfsid, $dir . '/in/' . $pnfsid)) {
 					$insize = (stat $dir . '/in/' . $pnfsid)[7];
 					if(defined $insize && $insize == $size) {
 						if(rename $dir . '/in/' . $pnfsid, $filename) {
@@ -286,11 +286,11 @@ if($command eq 'get') {
 							exit 33;
 						}
 					} else {
-						printlog "Copy of $remote$pnfsid returned 1, but had wrong size!\n";
+						printlog "Copy of $remote/$pnfsid returned 1, but had wrong size!\n";
 						unlink $filename;
 					}
 				} else {
-					printlog "Remote cache steal failed for $remote$pnfsid: $!\n";
+					printlog "Remote cache steal failed for $remote/$pnfsid: $!\n";
 					unlink $filename;
 				}
 			}
