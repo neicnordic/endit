@@ -15,18 +15,25 @@ my $listfile = $dir . '/requestlist';
 
 sub printlog($) {
 	my $msg = shift;
-	open LF, '>>' . $conf{'logdir'} . '/tsmretriever.log' ;
-	print LF $msg;
-	close LF;
+	open LOGF, '>>' . $conf{'logdir'} . '/tsmretriever.log' ;
+	print LOGF $msg;
+	close LOGF;
 }
 
 sub checkrequest($) {
 	my $req=shift;
 	my $rf = $conf{'dir'} . '/request/' . $req;
 	my $pid;
+	if(-z $rf) {
+		printlog "Zero-sized request file $rf\n";
+	}
 	open RF, $rf;
 	while(<RF>) {
-		$pid = $1 if $_ =~ /(\d+) (\d+)/;
+		if($_ =~ /(\d+) (\d+)/) {
+			$pid = $1;
+		} else {
+			printlog "Broken request file $rf\n";
+		}
 	}
 	if(getpgrp($pid) > 0) {
 		return 1;
@@ -58,7 +65,7 @@ while(1) {
 	my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST);
 	closedir(REQUEST);
 	next unless @requests;
-	open LF, ">", $listfile;
+	open LF, ">", $listfile or die "Can't open listfile: $!";
 	my $req;
 	foreach $req (@requests) {
 		if(checkrequest($req)) {
@@ -71,8 +78,9 @@ while(1) {
 	my $indir = $dir . '/in/';
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
 	my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
-	my ($out,$err);
-	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
+	my ($in,$out,$err);
+	$in="A\n";
+	if((run3 \@cmd, \$in, \$out, \$err) && $? ==0) { 
 		# files migrated from tape without issue
 	} else {
 		# something went wrong. figure out what files didn't make it.
@@ -89,8 +97,9 @@ while(1) {
 			my $req = $dir . '/request/' . $filename;
 			if( -e $req ) {
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts,$outfile,$indir);
-				my ($out,$err);
-				if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
+				my ($in, $out,$err);
+				$in="A\n";
+				if((run3 \@cmd, \$in, \$out, \$err) && $? ==0) {
 					# Went fine this time. Strange..
 				} else {
 					printlog localtime() . ": warning, dsmc retrieve error on $outfile:\n";
