@@ -13,16 +13,15 @@ use IPC::Run3;
 use Digest::MD5 qw(md5_hex);
 use POSIX qw(strftime);
 
-$basedir = '/opt/endit/';
-use lib $basedir;
 
+use lib '/opt/endit/';
 use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'endit.log';
 
 ####################
 ## Static parameters
-readconf($basedir . '/endit.conf'); 
+readconf('/opt/endit/endit.conf'); 
 die "No basedir!\n" unless $conf{'dir'};
 warn "No logdir!\n" unless $conf{'logdir'};
 warn "No logsuffix!\n" unless $Endit::logsuffix;
