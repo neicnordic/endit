@@ -4,6 +4,7 @@ use warnings;
 use strict;
 use English;
 
+
 use Filesys::Statvfs;
 use File::Path;
 use File::Copy;
@@ -12,13 +13,16 @@ use IPC::Run3;
 use Digest::MD5 qw(md5_hex);
 use POSIX qw(strftime);
 
+$basedir = '/opt/endit/';
+use lib $basedir;
+
 use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'endit.log';
 
 ####################
 ## Static parameters
-readconf('/opt/endit/endit.conf'); 
+readconf($basedir . '/endit.conf'); 
 die "No basedir!\n" unless $conf{'dir'};
 warn "No logdir!\n" unless $conf{'logdir'};
 warn "No logsuffix!\n" unless $Endit::logsuffix;
