@@ -12,8 +12,8 @@ BEGIN {
 }
 
 
-my $logsuffix;
-my %conf;
+our $logsuffix;
+our %conf;
 
 sub readconf($) {
 	my $conffile = shift;
