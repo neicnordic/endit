@@ -171,9 +171,8 @@ if($command eq 'get') {
 		my @stat = stat $filename;
 		if (defined $stat[7] && $stat[7] == $size) {
 			exit 0; 
-                } elsif ($stat[7] == 0) {
-                        printlog "Working around 0-sized file bug.\n";
-
+		} elsif ($stat[7] == 0) {
+			printlog "Working around 0-sized file bug.\n";
 		} else {
 			printlog "Asked to restore a file that already exists with a different size!\n";
 			printlog "The file was $filename ($pnfsid), exiting...\n";
