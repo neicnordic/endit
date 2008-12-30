@@ -19,6 +19,7 @@ sub readconf($) {
 	my $conffile = shift;
 	my $key;
 	my $val;
+	warn "opening conffile $conffile";
 	open CF, '<'.$conffile or die "Can't open conffile: $!";
 	while(<CF>) {
 		next if $_ =~ /^#/;
