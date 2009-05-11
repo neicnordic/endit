@@ -6,54 +6,17 @@ use strict;
 use IPC::Run3;
 use POSIX qw(strftime);
 
+use lib '/opt/endit/';
+use Endit qw(%conf readconf printlog getusage);
 
-####################
-# Static parameters
-my %conf;
-&readconf('/opt/endit/endit.conf');
+$Endit::logsuffix = 'tsmarchiver.log';
 
-sub printlog($) {
-	my $msg = shift;
-	open LF, '>>' . $conf{'logdir'} . '/tsmarchiver.log';
-	print LF $msg;
-	close LF;
-}
+readconf('/opt/endit/endit.conf');
+die "No basedir!\n" unless $conf{'dir'};
+warn "No logdir!\n" unless $conf{'logdir'};
 
 printlog "No timeout!\n" unless $conf{'timeout'};
 printlog "No minusage!\n" unless $conf{'minusage'};
-
-
-sub readconf($) {
-        my $conffile = shift;
-        my $key;
-        my $val;
-        open CF, '<'.$conffile or die "Can't open conffile: $!";
-        while(<CF>) {
-                next if $_ =~ /^#/;
-		chomp;
-                ($key,$val) = split /: /;
-                next unless defined $val;
-                $conf{$key} = $val;
-        }
-}
-
-
-# Return filessystem usage (gigabytes)
-sub getusage($) {
-	my $dir = shift;
-	my ($out,$err,$size);
-	my @cmd = ('du','-ks',$dir);
-	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
-		($size, undef) = split ' ',$out;
-	} else {
-		# failed to run du, return 0 for graceful degradation.
-		printlog "failed to run du:\n";
-		printlog $out;
-		printlog $err;
-		$size=0;
-	}
-	return $size/1024/1024;
-}
 
 while(1) {
 	my $dir = $conf{'dir'} . '/out/';

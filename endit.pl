@@ -19,8 +19,6 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'endit.log';
 
-####################
-## Static parameters
 readconf('/opt/endit/endit.conf'); 
 die "No basedir!\n" unless $conf{'dir'};
 warn "No logdir!\n" unless $conf{'logdir'};

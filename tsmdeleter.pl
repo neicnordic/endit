@@ -5,35 +5,15 @@ use strict;
 
 use IPC::Run3;
 
+use lib '/opt/endit/';
+use Endit qw(%conf readconf printlog getusage);
 
-####################
-# Static parameters
-my %conf;
-&readconf('/opt/endit/endit.conf');
+$Endit::logsuffix = 'tsmarchiver.log';
+
+readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
 my $filelist = "$conf{'dir'}/tsm-delete-files";
 my $trashdir = "$conf{'dir'}/trash";
-
-sub printlog($) {
-	my $msg = shift;
-	open LF, '>>' . $conf{'logdir'} . '/tsmdeleter.log';
-	print LF $msg;
-	close LF;
-}
-
-sub readconf($) {
-        my $conffile = shift;
-        my $key;
-        my $val;
-        open CF, '<'.$conffile or die "Can't open conffile: $!";
-        while(<CF>) {
-                next if $_ =~ /^#/;
-		chomp;
-                ($key,$val) = split /: /;
-                next unless defined $val;
-                $conf{$key} = $val;
-        }
-}
 
 while(1) {
 	my @files = ();

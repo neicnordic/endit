@@ -5,20 +5,16 @@ use strict;
 
 use IPC::Run3;
 
-####################
-# Static parameters
-my %conf;
-&readconf('/opt/endit/endit.conf');
+use lib '/opt/endit/';
+use Endit qw(%conf readconf printlog getusage);
+
+$Endit::logsuffix = 'tsmretriever.log';
+
+readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
 my $dir = $conf{'dir'};
 my $listfile = $dir . '/requestlist';
 
-sub printlog($) {
-	my $msg = shift;
-	open LOGF, '>>' . $conf{'logdir'} . '/tsmretriever.log' ;
-	print LOGF $msg;
-	close LOGF;
-}
 
 sub checkrequest($) {
 	my $req=shift;
@@ -43,22 +39,6 @@ sub checkrequest($) {
 	}
 }
 	
-
-
-sub readconf($) {
-        my $conffile = shift;
-        my $key;
-        my $val;
-        open CF, '<'.$conffile or die "Can't open conffile: $!";
-        while(<CF>) {
-                next if $_ =~ /^#/;
-		chomp;
-                ($key,$val) = split /: /;
-                next unless defined $val;
-                $conf{$key} = $val;
-        }
-}
-
 while(1) {
 	sleep 60;
 	opendir(REQUEST,$dir . '/request/');
@@ -90,6 +70,7 @@ while(1) {
 		my (@requests) = <LF>;
 		close LF;
 		my $outfile;
+		my $returncode;
 		foreach $outfile (@requests) {
 			my (@l) = split /\//,$outfile;
 			my $filename = $l[$#l];
@@ -102,7 +83,8 @@ while(1) {
 				if((run3 \@cmd, \$in, \$out, \$err) && $? ==0) {
 					# Went fine this time. Strange..
 				} else {
-					printlog localtime() . ": warning, dsmc retrieve error on $outfile:\n";
+					$returncode=$? >> 8;
+					printlog localtime() . ": warning, dsmc returned $returncode on $outfile:\n";
 					printlog $err;
 					printlog $out;
 					open EF, ">", $req . '.err' or warn "Could not open $req.err file: $!\n";
