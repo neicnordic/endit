@@ -5,7 +5,6 @@ use strict;
 use English;
 
 
-use Filesys::Statvfs;
 use File::Path;
 use File::Copy;
 use File::Basename;
@@ -70,6 +69,14 @@ if($command eq 'remove') {
 	}
 	if(-f $conf{'dir'} . '/out/' . $pnfsid) {
 		unlink $conf{'dir'} . '/out/' . $pnfsid;
+	}
+	if(defined $conf{'remotedirs'}) {
+		# Check if it is in any of the remote caches
+		my $remote;
+		my @remotedirs = split / /, $conf{'remotedirs'};
+		foreach $remote (@remotedirs) {
+			unlink $remote . '/' . $pnfsid;
+		}
 	}
 	if(open FH,'>',$conf{'dir'} . '/trash/' . $pnfsid) {
 		print FH "$options{'uri'}\n";
