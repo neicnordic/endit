@@ -124,28 +124,7 @@ if($command eq 'put') {
 			exit 30;
 		}
 	}
-	if(defined $conf{'pnfs'}) {
-		my $pnfs = $conf{'pnfs'};
-		# use old pnfs metadata
-		if(open FH,'>',$pnfs . '/.(access)(/' . $pnfsid . ')(1)') {
-			if(!print FH "$store $group $pnfsid\n") {
-				printlog "write $pnfs/.(access)(/$pnfsid)(1) failed: $!\n";
-				exit 34;
-			}
-			close FH;
-			# all is good..
-		} else {
-			printlog "opening $pnfs/.(access)(/$pnfsid)(1) failed: $!\n";
-			exit 34;
-		}
-		if(open FH,'>',$pnfs.'/.(pset)('.$pnfsid.')(size)('. $size.')') {
-			close FH;
-			# all is good..
-		} else {
-			printlog "touch $pnfs/.(pset)($pnfsid)(size)($size) failed: $!\n";
-			exit 32;
-		}
-	} else {
+	{
 		# new pnfs-free interface
 		my $hsminstance;
 		if(defined($conf{'hsminstance'})) {
