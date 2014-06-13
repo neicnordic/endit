@@ -20,8 +20,8 @@ sub readconf($) {
 	my $key;
 	my $val;
 #	warn "opening conffile $conffile";
-	open CF, '<'.$conffile or die "Can't open conffile: $!";
-	while(<CF>) {
+	open my $cf, '<', $conffile or die "Can't open conffile: $!";
+	while(<$cf>) {
 		next if $_ =~ /^#/;
 		chomp;
 		($key,$val) = split /: /;
@@ -33,9 +33,9 @@ sub readconf($) {
 sub printlog($) {
 	my $msg = shift;
 	my $now = strftime '%Y-%m-%d %H:%M:%S ', localtime;
-	open LF, '>>' . $conf{'logdir'} . '/' . $logsuffix or warn "Failed to open " . $conf{'logdir'} . '/' . $logsuffix . ": $!";
-	print LF $now . $msg;
-	close LF;
+	my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
+	open my $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
+	print $lf $now . $msg;
 }
 
 # Return filessystem usage (gigabytes)

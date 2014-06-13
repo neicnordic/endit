@@ -18,23 +18,25 @@ my $listfile = $dir . '/requestlist';
 
 sub checkrequest($) {
 	my $req=shift;
-	my $rf = $conf{'dir'} . '/request/' . $req;
+	my $req_filename = $conf{'dir'} . '/request/' . $req;
 	my $pid;
 	if(-z $rf) {
 		printlog "Zero-sized request file $rf\n";
 	}
-	open RF, $rf;
-	while(<RF>) {
-		if($_ =~ /(\d+) (\d+)/) {
-			$pid = $1;
-		} else {
-			printlog "Broken request file $rf\n";
+	{
+		open my $rf, '<', $req_filename;
+		while(<$rf>) {
+			if($_ =~ /(\d+) (\d+)/) {
+				$pid = $1;
+			} else {
+				printlog "Broken request file $rf\n";
+			}
 		}
 	}
 	if(getpgrp($pid) > 0) {
 		return 1;
 	} else {
-		unlink $rf;
+		unlink $req_filename;
 		return 0;
 	}
 }
@@ -42,19 +44,19 @@ sub checkrequest($) {
 while(1) {
 	sleep 60;
 	opendir(REQUEST,$dir . '/request/');
-	my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST);
+	my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST); # omit entries with extensions
 	closedir(REQUEST);
 	next unless @requests;
-	open LF, ">", $listfile or die "Can't open listfile: $!";
-	my $req;
-	foreach $req (@requests) {
-		if(checkrequest($req)) {
-			print LF "$dir/out/$req\n";
-		} else {
-			printlog "Deactivating $req due to unexisting pid\n";
+	{
+		open my $lf, ">", $listfile or die "Can't open listfile: $!";
+		foreach my $req (@requests) {
+			if(checkrequest($req)) {
+				print $lf "$dir/out/$req\n";
+			} else {
+				printlog "Deactivating $req due to unexisting pid\n";
+			}
 		}
 	}
-	close LF;
 	my $indir = $dir . '/in/';
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
 	my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
@@ -66,9 +68,9 @@ while(1) {
 		# something went wrong. figure out what files didn't make it.
 		# wait for the hsm script to remove succesful requests
 		sleep 60;
-		open LF, "<", $listfile;
-		my (@requests) = <LF>;
-		close LF;
+		open my $lf, "<", $listfile;
+		my (@requests) = <$lf>;
+		close $lf;
 		my $outfile;
 		my $returncode;
 		foreach $outfile (@requests) {

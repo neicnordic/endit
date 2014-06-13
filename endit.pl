@@ -62,7 +62,8 @@ if($command eq 'remove' and !defined($options{'uri'})) {
 
 if($command eq 'remove') {
 # uri: print "osm://hpc2n.umu.se/?store=$store&group=$group&bfid=$pnfsid\n";
-	my $pnfsid = $1 if $options{'uri'}  =~ /.*bfid=(\w+)/;
+	my $pnfsid;
+	$pnfsid = $1 if $options{'uri'}  =~ /.*bfid=(\w+)/;
 	if(!defined($pnfsid)) {
 		printlog "couldn't parse $options{'uri'}\n";
 		exit 32;
@@ -72,9 +73,8 @@ if($command eq 'remove') {
 	}
 	if(defined $conf{'remotedirs'}) {
 		# Check if it is in any of the remote caches
-		my $remote;
 		my @remotedirs = split / /, $conf{'remotedirs'};
-		foreach $remote (@remotedirs) {
+		foreach my $remote (@remotedirs) {
 			unlink $remote . '/' . $pnfsid;
 		}
 	}
@@ -185,9 +185,8 @@ if($command eq 'get') {
 	my $insize;
 	if(defined $conf{'remotedirs'}) {
 		# Check if it is in any of the remote caches
-		my $remote;
 		my @remotedirs = split / /, $conf{'remotedirs'};
-		foreach $remote (@remotedirs) {
+		foreach my $remote (@remotedirs) {
 			if(-f $remote . '/' . $pnfsid) {
 				if(copy($remote . '/' . $pnfsid, $dir . '/in/' . $pnfsid)) {
 					$insize = (stat $dir . '/in/' . $pnfsid)[7];
@@ -210,12 +209,13 @@ if($command eq 'get') {
 		}
 	}
 	
-	if(open FH,'>',$dir . '/request/' . $pnfsid) {
-		print FH "$PID $BASETIME\n";
-		close FH;
+	my $req_filename = "$dir/request/$pnfsid";
+	if(open my $fh,'>', $req_filename) {
+		print $fh, "$PID $BASETIME\n";
+		close $fh;
 		# all is good..
 	} else {
-		printlog "touch $dir/request/$pnfsid failed: $!\n";
+		printlog "generating $dir/request/$pnfsid failed: $!\n";
 		exit 32;
 	}
 	
@@ -224,9 +224,9 @@ if($command eq 'get') {
 		my $errfile=$dir . '/request/' . $pnfsid . '.err';
 		if(-f $errfile) {
 			sleep 1;
-			open(IN, $errfile) || die "Unable to open $errfile: $!";
-			my @err = <IN>;
-			close(IN);
+			open my $in, '<', $errfile || die "Unable to open $errfile: $!";
+			my @err = <$in>;
+			close($in);
 			unlink $errfile;
 			unlink $dir . '/request/' . $pnfsid;
 			unlink $dir . '/in/' . $pnfsid;
