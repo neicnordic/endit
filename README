@@ -1,11 +1,20 @@
 ENDIT - Efficient Northern Dcache Interface to TSM
 
 Concept
+-------
 
 Use the same filesystem as an HSM staging area, using hardlinks to "store"
 data and then use batch processes to archive and restore data to/from tape.
 
+Requirements
+------------
+
+At least the following Perl modules need to be installed:
+
+* JSON
+
 Configuration
+-------------
 
 Since both store and retrieve uses the same filesystem for staging, you
 can't use the full filesystem size as poolsize to dcache. In fact, you
@@ -32,14 +41,17 @@ seen as unavailable in the interval between "endit.pl put" hardlinks and
 that the "tsmarchiver.pl" process has fully migrated it to tape.
 
 After starting dcache you also need to start the three scripts:
-tsmarchiver.pl
-tsmretriever.pl
-tsmdeleter.pl
+
+* tsmarchiver.pl
+* tsmretriever.pl
+* tsmdeleter.pl
 
 Collaboration
+-------------
 
 It's all healthy perl, no icky surprises, I hope. Patches, suggestions, etc are
 most welcome.
 
 
 Mattias Wadenstein <maswan@hpc2n.umu.se>
+Lars Viklund <lars@hpcn2.umu.se>

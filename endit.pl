@@ -10,6 +10,7 @@ use File::Copy;
 use File::Basename;
 use Digest::MD5 qw(md5_hex);
 use POSIX qw(strftime);
+use JSON;
 
 
 use lib '/opt/endit/';
@@ -211,7 +212,8 @@ if($command eq 'get') {
 	
 	my $req_filename = "$dir/request/$pnfsid";
 	if(open my $fh, '>', "$req_filename.stage") {
-		print $fh, "$PID $BASETIME\n";
+		my $state = { pid => $PID, basetime => $BASETIME, size => $size };
+		print $fh encode_json($state);
 		close $fh;
 		rename("$req_filename.stage", $req_filename); # atomic move
 		# all is good..

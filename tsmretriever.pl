@@ -5,6 +5,7 @@ use strict;
 
 use IPC::Run3;
 use POSIX qw( WNOHANG );
+use JSON;
 
 use lib '/opt/endit/';
 use Endit qw(%conf readconf printlog getusage);
@@ -30,14 +31,14 @@ sub checkrequest($) {
 		printlog "Zero-sized request file $req_filename\n";
 	}
 	{
+		local $/; # slurp whole file
 		open my $rf, '<', $req_filename;
-		while(<$rf>) {
-			if($_ =~ /(\d+) (\d+)/) {
-				$pid = $1;
-			} else {
-				printlog "Broken request file $rf\n";
-			}
+		my $json_text = <$rf>;
+		my $state = decode_json($json_text);
+		if (!defined $state || !exists $state->{pid} || !exists $state->{size}) {
+			printlog "Broken request file $req_filename\n";
 		}
+		$pid = $state->{pid};
 	}
 	if(getpgrp($pid) > 0) {
 		return { pid => $pid };
