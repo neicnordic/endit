@@ -210,9 +210,10 @@ if($command eq 'get') {
 	}
 	
 	my $req_filename = "$dir/request/$pnfsid";
-	if(open my $fh,'>', $req_filename) {
+	if(open my $fh, '>', "$req_filename.stage") {
 		print $fh, "$PID $BASETIME\n";
 		close $fh;
+		rename("$req_filename.stage", $req_filename); # atomic move
 		# all is good..
 	} else {
 		printlog "generating $dir/request/$pnfsid failed: $!\n";
