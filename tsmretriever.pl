@@ -24,25 +24,22 @@ sub namelistfile() {
 
 
 sub checkrequest($) {
-	my $req=shift;
+	my $req = shift;
 	my $req_filename = $conf{'dir'} . '/request/' . $req;
 	my $pid;
-	if(-z $req_filename) {
-		printlog "Zero-sized request file $req_filename\n";
-	}
 	{
 		local $/; # slurp whole file
 		open my $rf, '<', $req_filename;
 		my $json_text = <$rf>;
 		my $state = decode_json($json_text);
-		if (!defined $state || !exists $state->{pid} || !exists $state->{size}) {
-			printlog "Broken request file $req_filename\n";
+		if (defined $state && exists $state->{pid}) {
+			$pid = $state->{pid};
 		}
-		$pid = $state->{pid};
 	}
-	if(getpgrp($pid) > 0) {
+	if($pid && getpgrp($pid) > 0) {
 		return { pid => $pid };
 	} else {
+		printlog "Broken request file $req_filename\n";
 		unlink $req_filename;
 		return undef;
 	}
