@@ -28,6 +28,9 @@ sub readconf($) {
 		next unless defined $val;
 		$conf{$key} = $val;
 	}
+	if (!exists $conf{maxretrievers}) {
+		$conf{maxretrievers} = 1;
+	}
 }
 
 sub printlog($) {
@@ -49,9 +52,23 @@ sub getusage($) {
 		# failed to run du, probably just a disappearing file.
 		printlog "failed to run du: $err\n";
 		# Return > maxusage to try again in a minute or two
-		return $conf{'maxusge'} + 1024;
+		return $conf{'maxusage'} + 1024;
 	}
 	return $size/1024/1024;
+}
+
+sub readtapelist($) {
+	print "reading tape list" if $conf{verbose};
+	my $tapefile = shift;
+	my $out = {};
+	open my $tf, '<', $tapefile or return undef;
+	while (<$tf>) {
+		chomp;
+		my ($id,$tape) = split /\s+/;
+		next unless defined $id && defined $tape;
+		$out->{$id} = $tape;
+	}
+	return $out;
 }
 
 1;
