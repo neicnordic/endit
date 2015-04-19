@@ -13,15 +13,20 @@ $Endit::logsuffix = 'tsmretriever.log';
 readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
 my $dir = $conf{'dir'};
-my $listfile = $dir . '/requestlist';
+my $listfilecounter = 0;
+
+sub namelistfile() {
+	++$listfilecounter;
+	return "$dir/requestlist.$listfilecounter";
+}
 
 
 sub checkrequest($) {
 	my $req=shift;
 	my $req_filename = $conf{'dir'} . '/request/' . $req;
 	my $pid;
-	if(-z $rf) {
-		printlog "Zero-sized request file $rf\n";
+	if(-z $req_filename) {
+		printlog "Zero-sized request file $req_filename\n";
 	}
 	{
 		open my $rf, '<', $req_filename;
