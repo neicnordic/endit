@@ -49,7 +49,7 @@ sub getusage($) {
                 # failed to run du, probably just a disappearing file.
                 printlog "failed to run du: $err\n";
 		# Return > maxusage to try again in a minute or two
-                return $conf{'maxusge'} + 1024;
+                return $conf{'maxusage'} + 1024;
         }
         return $size/1024/1024;
 }
