@@ -31,8 +31,8 @@ while(1) {
 
 	my $date=strftime "%Y%m",localtime;
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
-	my @cmd = ('dsmc','archive','-v2archive','-deletefiles', @dsmcopts,
-		'-deletefiles',"-description=$date","$dir/*");
+	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
+		'-deletefiles',"-description=endit","$dir/*");
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		printlog $out if $conf{'verbose'};

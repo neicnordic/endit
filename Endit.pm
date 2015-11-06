@@ -49,9 +49,48 @@ sub getusage($) {
 		# failed to run du, probably just a disappearing file.
 		printlog "failed to run du: $err\n";
 		# Return > maxusage to try again in a minute or two
-		return $conf{'maxusge'} + 1024;
-	}
-	return $size/1024/1024;
+                return $conf{'maxusage'} + 1024;
+        }
+        return $size/1024/1024;
+}
+
+# Return filessystem usage (percent)
+#sub getusage($) {
+#	my $dir = shift;
+#	my($bsize, $frsize, $blocks, $bfree, $bavail, $files, $ffree, $favail,
+#		$fsid, $basetype, $flag, $namemax, $fstr) = statvfs($dir);
+#
+#	if(!defined($bsize)) {
+#		printlog "Unable to statvfs $dir: $!\n";
+#		exit 35;
+#	}
+#
+#	my $fssize = $frsize * $blocks;
+#	my $fsfree = $frsize * $bavail;
+#
+#	return (($fssize-$fsfree)/$fssize)*100;
+#}
+
+# Based on the text (typically pnfsid), return a number on an even spread
+# between 0 and n-1. Based on the last $chars of the md5 in hex.
+sub dirhash() {
+	my $text = shift;
+	my $n = shift;
+	my $chars = 8;
+
+	if(!defined($n)) {
+		printlog "dirhash called without n!\n";
+        }
+
+        if($n > 16**$chars) {
+                printlog "dirhash: warning: n > 16^chars, $n > 16**$chars\n";
+        }
+
+        my $md5 = md5_hex($text);
+
+        my $md5s = substr $md5, -$chars, $chars;
+        my $hash = $md5s % $n;
+        return $hash;
 }
 
 1;

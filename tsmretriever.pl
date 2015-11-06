@@ -33,6 +33,9 @@ sub checkrequest($) {
 			}
 		}
 	}
+	if($pid == 0) {
+		return 1;
+	}
 	if(getpgrp($pid) > 0) {
 		return 1;
 	} else {
@@ -59,14 +62,18 @@ while(1) {
 	}
 	my $indir = $dir . '/in/';
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	print "starting dsmc at " . localtime() . "for $#requests files\n";
 	my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
 	my ($in,$out,$err);
 	$in="A\n";
 	if((run3 \@cmd, \$in, \$out, \$err) && $? ==0) { 
+		print "dsmc done successfully at " . localtime() . "\n";
 		# files migrated from tape without issue
-	} else {
+		sleep $#requests/20;
+	} elsif($#requests < 10) {
 		# something went wrong. figure out what files didn't make it.
 		# wait for the hsm script to remove succesful requests
+		# Only do this for small number of requests
 		sleep 60;
 		open my $lf, "<", $listfile;
 		my (@requests) = <$lf>;
@@ -95,6 +102,10 @@ while(1) {
 				}
 			}
 		}
+	} else {
+		print "dsmc done unsuccessfully at " . localtime() . "\n";
+		# Large number of requests broke, try again later
+		sleep 600;
 	}
 	unlink $listfile;
 }
