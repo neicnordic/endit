@@ -34,14 +34,13 @@ sub monthdeleted {
 
 sub havedeleted {
 	my @files = @_;
-	my $trf;
 	my $thismonth = strftime '%Y-%m', localtime;
 	if(-d $conf{'dir'} . '/trash/'. $thismonth) {
 		# Already created
 	} else {
 		mkdir  $conf{'dir'} . '/trash/'. $thismonth;
 	}
-	foreach $trf (@files) {
+	foreach my $trf (@files) {
 		if(rename($conf{'dir'} . '/trash/' . $trf, $conf{'dir'} . '/trash/'. $thismonth . '/' . $trf)) {
 			# To be run again next month
 		} else {
@@ -67,8 +66,7 @@ sub rundelete {
 		# Also ignore ANS1278W - irrelevant
 		my @outl = split /\n/m, $out;
 		my @errorcodes = grep (/^ANS/, @outl);
-		my $error;
-		foreach $error (@errorcodes) {
+		foreach my $error (@errorcodes) {
 			if($error =~ /^ANS1345E/ or $error =~ /^ANS1302E/ or $error =~ /^ANS1278W/) {
 				printlog "File already deleted:\n$error\n" if $conf{'verbose'};
 			} else {
@@ -116,9 +114,10 @@ while(1) {
 			closedir(TD);
 			if (@files > 0) {
 				unlink $filelist;
-				open(FL, ">$filelist");
-				print FL map { "$conf{'dir'}/out/$_\n"; } @files;
-				close(FL);
+				{
+					open my $fl, '>', $filelist);
+					print $fl map { "$conf{'dir'}/out/$_\n"; } @files;
+				}
 				if(rundelete($filelist)) {
 					# Have already warned in rundelete()
 				} else {
