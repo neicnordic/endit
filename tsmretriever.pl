@@ -4,6 +4,7 @@ use warnings;
 use strict;
 
 use IPC::Run3;
+use JSON;
 use POSIX qw( WNOHANG );
 
 use lib '/opt/endit/';
@@ -26,17 +27,13 @@ sub checkrequest($) {
 	my $req=shift;
 	my $req_filename = $conf{'dir'} . '/request/' . $req;
 	my $pid;
-	if(-z $req_filename) {
-		printlog "Zero-sized request file $req_filename\n";
-	}
 	{
+		local $/;
 		open my $rf, '<', $req_filename;
-		while(<$rf>) {
-			if($_ =~ /(\d+) (\d+)/) {
-				$pid = $1;
-			} else {
-				printlog "Broken request file $rf\n";
-			}
+		my $json_text = <$rf>;
+		my $state = decode_json($json_text);
+		if (defined $state && exists $state->{pid}) {
+			$pid = $state->{pid};
 		}
 	}
 	if(getpgrp($pid) > 0) {
