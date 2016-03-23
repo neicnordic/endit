@@ -115,7 +115,7 @@ while(1) {
 			if (@files > 0) {
 				unlink $filelist;
 				{
-					open my $fl, '>', $filelist);
+					open my $fl, '>', $filelist;
 					print $fl map { "$conf{'dir'}/out/$_\n"; } @files;
 				}
 				if(rundelete($filelist)) {
