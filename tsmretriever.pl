@@ -60,14 +60,16 @@ my $tapelist = {};
 my %reqset;
 my @workers;
 
+# Warning: Infinite loop. Program may not stop.
 while(1) {
 #	sleep to let requester remove requests and pace ourselves
-	sleep 60;
+	sleep 6;
 
 #	check if any dsmc workers are done
 	if($#workers>0) {
 		@workers = map {
 			my $w = $_;
+
 			my $wres = waitpid($w->{pid}, WNOHANG);
 			my $rc = $?;
 			if ($wres == $w->{pid}) {
@@ -77,7 +79,8 @@ while(1) {
 				if ($? == 0) {
 				}
 				unlink $w->{listfile};
-			}
+			} 
+			$w;
 		} @workers;
 		@workers = grep { $_->{pid} } @workers;
 	}
@@ -95,19 +98,21 @@ while(1) {
 		}
 	}
 
-#	check for new requests
+#	read current requests
 	{
+		%reqset=();
 		opendir(REQUEST,$dir . '/request/');
 		my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST); # omit entries with extensions
 		closedir(REQUEST);
 		if (@requests) {
 			foreach my $req (@requests) {
-				next if (exists $reqset{$req} || grep { processing_file($_, $req) } @workers);
 				my $reqinfo = checkrequest($req);
 				if ($reqinfo) {
 					if (!exists $reqinfo->{tape}) {
 						if (my $tape = $tapelist->{$req}) {
 							$reqinfo->{tape} = $tape;
+						} else {
+							$reqinfo->{tape} = 'default';
 						}
 					}
 					$reqset{$req} = $reqinfo;
@@ -116,50 +121,55 @@ while(1) {
 		}
 	}
 
+print Dumper(\%reqset);
 
 #	if any requests and free worker
 	if (%reqset && $#workers < $conf{'maxretrievers'}) {
 #		make list blacklisting pending tapes
 		my %usedtapes;
-		if($#workers >0) {
-			%usedtapes = map { %{$_->{tapes}} } @workers;
-		}
-		my %postponed;
 		my $job = {};
+		if($#workers >0) {
+			%usedtapes = map { $_->{tape} => 1 } @workers;
+		}
+print Dumper(\%usedtapes);
 		foreach my $name (keys %reqset) {
 			my $req = $reqset{$name};
 			my $tape;
-			$tape = $req->{tape} if (exists $req->{tape});
-			if (defined $tape && exists $usedtapes{$tape}) {
-				$postponed{$name} = $req;
+			if (exists $req->{tape}) {
+				$tape = $req->{tape};
+			} else {
+				printlog "Warning: tape should have been set for $name, but setting it again!\n";
+				$tape = 'default';
 			}
-			else {
-				$job->{files}->{$name} = $req;
-				$job->{tapes}->{$tape} = $tape if $tape;
-			}
+			$job->{$tape}->{$name} = $req;
 		}
-		%reqset = %postponed;
 
-#		start job if non-empty
-		if (exists $job->{files}) {
-			my $listfile = namelistfile();
+#		start jobs on tapes not already taken up until maxretrievers
+		foreach my $tape (keys $job) {
+			last if $#workers >= $conf{'maxretrievers'}-1;
+			next if exists $usedtapes{$tape};
+			my $listfile = "$dir/requestlists/$tape";
 			open my $lf, ">", $listfile or die "Can't open listfile: $!";
-			my $files = $job->{files};
-			foreach my $name (keys $files) {
+			foreach my $name (keys $job->{$tape}) {
 				print $lf "$dir/out/$name\n";
 			}
 			close $lf;
 
 #			spawn worker
 			my $pid;
+			my $j;
 			if ($pid = fork) {
-				$job->{pid} = $pid;
-				push @workers, $job;
+				$j=$job->{$tape};
+				$j->{pid} = $pid;
+				$j->{listfile} = $listfile;
+				$j->{tape} = $tape;
+				push @workers, $j;
 			}
 			else {
 				my $indir = $dir . '/in/';
 				my @dsmcopts = split /, /, $conf{'dsmcopts'};
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
+				# my @cmd = ('md5sum', "$listfile");
 				my ($in,$out,$err);
 				open my $lf, "<", $listfile;
 				my (@requests) = <$lf>;
