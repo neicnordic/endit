@@ -62,7 +62,7 @@ my @workers;
 
 while(1) {
 #	sleep to let requester remove requests and pace ourselves
-	sleep 6;
+	sleep 60;
 
 #	check if any dsmc workers are done
 	if($#workers>0) {
@@ -204,7 +204,7 @@ while(1) {
 				} else {
 			                printlog "dsmc retrieve done unsuccessfully at " . localtime() . "\n";
                 			# Large number of requests broke, try again later
-                			sleep 600;
+                			exit 1;
 				}
 			}
 		}
