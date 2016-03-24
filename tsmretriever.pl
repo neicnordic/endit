@@ -63,7 +63,7 @@ my @workers;
 # Warning: Infinite loop. Program may not stop.
 while(1) {
 #	sleep to let requester remove requests and pace ourselves
-	sleep 6;
+	sleep 60;
 
 #	check if any dsmc workers are done
 	if($#workers>0) {
@@ -121,8 +121,6 @@ while(1) {
 		}
 	}
 
-print Dumper(\%reqset);
-
 #	if any requests and free worker
 	if (%reqset && $#workers < $conf{'maxretrievers'}) {
 #		make list blacklisting pending tapes
@@ -131,7 +129,6 @@ print Dumper(\%reqset);
 		if($#workers >0) {
 			%usedtapes = map { $_->{tape} => 1 } @workers;
 		}
-print Dumper(\%usedtapes);
 		foreach my $name (keys %reqset) {
 			my $req = $reqset{$name};
 			my $tape;
