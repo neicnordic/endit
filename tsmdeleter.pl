@@ -17,6 +17,22 @@ die "No basedir!\n" unless $conf{'dir'};
 my $filelist = "$conf{'dir'}/tsm-delete-files";
 my $trashdir = "$conf{'dir'}/trash";
 
+# Try to send warn/die messages to log file
+INIT {
+        $SIG{__DIE__}=sub {
+                printlog("DIE: $_[0]");
+        };
+
+        $SIG{__WARN__}=sub {
+                print STDERR "$_[0]";
+                printlog("WARN: $_[0]");
+        };
+}
+
+$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
+$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
+$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
+
 sub monthdeleted {
 	my $month = shift;
 	my @files = @_;
@@ -67,7 +83,7 @@ sub rundelete {
 		my @outl = split /\n/m, $out;
 		my @errorcodes = grep (/^ANS/, @outl);
 		foreach my $error (@errorcodes) {
-			if($error =~ /^ANS1345E/ or $error =~ /^ANS1302E/ or $error =~ /^ANS1278W/) {
+			if($error =~ /^ANS1345E/ or $error =~ /^ANS1302E/ or $error =~ /^ANS1278W/ or $error =~ /^ANS1898I/) {
 				printlog "File already deleted:\n$error\n" if $conf{'verbose'};
 			} else {
 				$reallybroken=1;
