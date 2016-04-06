@@ -66,6 +66,7 @@ sub readtapelist($) {
 		chomp;
 		my ($id,$tape) = split /\s+/;
 		next unless defined $id && defined $tape;
+		$tape=~tr/a-zA-Z0-9.-/_/cs;
 		$out->{$id} = $tape;
 	}
 	return $out;
