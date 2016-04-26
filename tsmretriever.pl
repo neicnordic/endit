@@ -168,14 +168,14 @@ while(1) {
 		}
 
 #		start jobs on tapes not already taken up until maxretrievers
-		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys $job) {
+		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
 			last if $#workers >= $conf{'maxretrievers'}-1;
 print "oldest job on tape $tape: $job->{$tape}->{timestamp}\n";
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{remounttime};
 			my $listfile = "$dir/requestlists/$tape";
 			open my $lf, ">", $listfile or die "Can't open listfile: $!";
-			foreach my $name (keys $job->{$tape}) {
+			foreach my $name (keys %{$job->{$tape}}) {
 				next unless checkrequest($name);
 				print $lf "$dir/out/$name\n";
 			}
