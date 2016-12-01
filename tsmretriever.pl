@@ -44,12 +44,12 @@ sub checkrequest($) {
 		open my $rf, '<', $req_filename or return undef;
 		my $json_text = <$rf>;
 		my $state = decode_json($json_text);
-		if (defined $state && exists $state->{pid}) {
-			$parent_pid = $state->{pid};
+		if (defined $state && exists $state->{parent_pid}) {
+			$parent_pid = $state->{parent_pid};
 		}
 		my $in_filename = $conf{'dir'} . '/in/' . $req;
 		my $in_filesize=(stat $in_filename)[7];
-		if(defined $in_filesize && $in_filesize == $state->{size}) {
+		if(defined $in_filesize && $in_filesize == $state->{file_size}) {
 			printlog "Not doing $req due to file of correct size already in in\n" if $conf{'verbose'};
 			return undef;
 		}
