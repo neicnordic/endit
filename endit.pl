@@ -212,7 +212,7 @@ if($command eq 'get') {
 	
 	my $req_filename = "$dir/request/$pnfsid";
 	if(open my $fh, '>', "$req_filename.stage") {
-		my $state = { pid => $PID, basetime => $BASETIME, size => $size };
+		my $state = { parent_pid => $PID, basetime => $BASETIME, file_size => $size };
 		print $fh encode_json($state);
 		close $fh;
 		rename("$req_filename.stage", $req_filename); # atomic move
