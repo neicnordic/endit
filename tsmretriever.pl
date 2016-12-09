@@ -4,6 +4,9 @@ use warnings;
 use strict;
 
 use IPC::Run3;
+use POSIX qw( WNOHANG );
+use JSON;
+use Data::Dumper;
 
 use lib '/opt/endit/';
 use Endit qw(%conf readconf printlog getusage);
@@ -13,99 +16,208 @@ $Endit::logsuffix = 'tsmretriever.log';
 readconf('/opt/endit/endit.conf');
 die "No basedir!\n" unless $conf{'dir'};
 my $dir = $conf{'dir'};
-my $listfile = $dir . '/requestlist';
+my $listfilecounter = 0;
 
+# Try to send warn/die messages to log file
+INIT {
+        $SIG{__DIE__}=sub {
+                printlog("DIE: $_[0]");
+        };
+
+        $SIG{__WARN__}=sub {
+                print STDERR "$_[0]";
+                printlog("WARN: $_[0]");
+        };
+}
+
+$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
+$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
+$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
 
 sub checkrequest($) {
-	my $req=shift;
+	my $req = shift;
 	my $req_filename = $conf{'dir'} . '/request/' . $req;
-	my $pid;
-	if(-z $rf) {
-		printlog "Zero-sized request file $rf\n";
-	}
+	my $parent_pid;
 	{
-		open my $rf, '<', $req_filename;
-		while(<$rf>) {
-			if($_ =~ /(\d+) (\d+)/) {
-				$pid = $1;
-			} else {
-				printlog "Broken request file $rf\n";
-			}
+		local $/; # slurp whole file
+#		If open failed, probably the request was finished or cancelled
+		open my $rf, '<', $req_filename or return undef;
+		my $json_text = <$rf>;
+		my $state = decode_json($json_text);
+		if (defined $state && exists $state->{parent_pid}) {
+			$parent_pid = $state->{parent_pid};
+		}
+		my $in_filename = $conf{'dir'} . '/in/' . $req;
+		my $in_filesize=(stat $in_filename)[7];
+		if(defined $in_filesize && $in_filesize == $state->{file_size}) {
+			printlog "Not doing $req due to file of correct size already in in\n" if $conf{'verbose'};
+			return undef;
 		}
 	}
-	if($pid == 0) {
-		return 1;
-	}
-	if(getpgrp($pid) > 0) {
-		return 1;
+	if($parent_pid && getpgrp($parent_pid) > 0) {
+		return { parent_pid => $parent_pid };
 	} else {
+		printlog "Broken request file $req_filename\n";
 		unlink $req_filename;
+		return undef;
+	}
+}
+
+sub processing_file($$) {
+	my ($worker,$file) = @_;
+	if($worker) {
+		return exists $worker->{files}->{$file};
+	} else {
 		return 0;
 	}
 }
-	
+
+my $tapelistmodtime=0;
+my $tapelist = {};
+my %reqset;
+my %lastmount;
+my @workers;
+
+# Warning: Infinite loop. Program may not stop.
 while(1) {
-	sleep 60;
-	opendir(REQUEST,$dir . '/request/');
-	my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST); # omit entries with extensions
-	closedir(REQUEST);
-	next unless @requests;
-	{
-		open my $lf, ">", $listfile or die "Can't open listfile: $!";
-		foreach my $req (@requests) {
-			if(checkrequest($req)) {
-				print $lf "$dir/out/$req\n";
-			} else {
-				printlog "Deactivating $req due to unexisting pid\n";
+#	sleep to let requester remove requests and pace ourselves
+	sleep $conf{sleeptime};
+
+#	check if any dsmc workers are done
+	if(@workers) {
+		@workers = map {
+			my $w = $_;
+			my $wres = waitpid($w->{pid}, WNOHANG);
+			my $rc = $?;
+			if ($wres == $w->{pid}) {
+#				Child is done
+				$w->{pid} = undef;
+#				Intentionally not caring about results. We'll retry and if stuff is really broken, the admins will notice from hanging restore requests anywau
+				unlink $w->{listfile};
+			} 
+			$w;
+		} @workers;
+		@workers = grep { $_->{pid} } @workers;
+	}
+
+#	refresh tape list
+	if (exists $conf{tapefile}) {
+		my $tapefilename = $conf{tapefile};
+		my $newtapemodtime = (stat $tapefilename)[9];
+		if ($newtapemodtime > $tapelistmodtime) {
+			my $newtapelist = Endit::readtapelist($tapefilename);
+			if ($newtapelist) {
+				$tapelist = $newtapelist;
+				$tapelistmodtime = $newtapemodtime;
 			}
 		}
 	}
-	my $indir = $dir . '/in/';
-	my @dsmcopts = split /, /, $conf{'dsmcopts'};
-	print "starting dsmc at " . localtime() . "for $#requests files\n";
-	my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
-	my ($in,$out,$err);
-	$in="A\n";
-	if((run3 \@cmd, \$in, \$out, \$err) && $? ==0) { 
-		print "dsmc done successfully at " . localtime() . "\n";
-		# files migrated from tape without issue
-		sleep $#requests/20;
-	} elsif($#requests < 10) {
-		# something went wrong. figure out what files didn't make it.
-		# wait for the hsm script to remove succesful requests
-		# Only do this for small number of requests
-		sleep 60;
-		open my $lf, "<", $listfile;
-		my (@requests) = <$lf>;
-		close $lf;
-		my $outfile;
-		my $returncode;
-		foreach $outfile (@requests) {
-			my (@l) = split /\//,$outfile;
-			my $filename = $l[$#l];
-			chomp $filename;
-			my $req = $dir . '/request/' . $filename;
-			if( -e $req ) {
-				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts,$outfile,$indir);
-				my ($in, $out,$err);
-				$in="A\n";
-				if((run3 \@cmd, \$in, \$out, \$err) && $? ==0) {
-					# Went fine this time. Strange..
-				} else {
-					$returncode=$? >> 8;
-					printlog localtime() . ": warning, dsmc returned $returncode on $outfile:\n";
-					printlog $err;
-					printlog $out;
-					open EF, ">", $req . '.err' or warn "Could not open $req.err file: $!\n";
-					print EF "32\n";
-					close EF;
+
+#	read current requests
+	{
+		%reqset=();
+		opendir(REQUEST,$dir . '/request/');
+		my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST); # omit entries with extensions
+		closedir(REQUEST);
+		if (@requests) {
+			foreach my $req (@requests) {
+#				It'd be nice to do this here, but takes way too long with a large request list. Instead we only check it when making the requestlist per tape.
+#				my $reqinfo = checkrequest($req);
+				my $reqfilename=$dir . '/request/' . $req;
+				my $ts =(stat $reqfilename)[9];
+				my $reqinfo = {timestamp => $ts } if defined $ts;
+				if ($reqinfo) {
+					if (!exists $reqinfo->{tape}) {
+						if (my $tape = $tapelist->{$req}) {
+							$reqinfo->{tape} = $tape;
+						} else {
+							$reqinfo->{tape} = 'default';
+						}
+					}
+					$reqset{$req} = $reqinfo;
 				}
 			}
 		}
-	} else {
-		print "dsmc done unsuccessfully at " . localtime() . "\n";
-		# Large number of requests broke, try again later
-		sleep 600;
 	}
-	unlink $listfile;
+
+#	if any requests and free worker
+	if (%reqset && $#workers < $conf{'maxretrievers'}-1) {
+#		make list blacklisting pending tapes
+		my %usedtapes;
+		my $job = {};
+		if(@workers) {
+			%usedtapes = map { $_->{tape} => 1 } @workers;
+		}
+		foreach my $name (keys %reqset) {
+			my $req = $reqset{$name};
+			my $tape;
+			if (exists $req->{tape}) {
+				$tape = $req->{tape};
+			} else {
+				printlog "Warning: tape should have been set for $name, but setting it again!\n";
+				$tape = 'default';
+			}
+			$job->{$tape}->{$name} = $req;
+			if(defined $job->{$tape}->{timestamp}) {
+				if($job->{$tape}->{timestamp} > $req->{timestamp}){
+					$job->{$tape}->{timestamp} = $req->{timestamp}
+				}
+			} else {
+				$job->{$tape}->{timestamp}=$req->{timestamp};
+			}
+		}
+
+#		start jobs on tapes not already taken up until maxretrievers
+		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
+			last if $#workers >= $conf{'maxretrievers'}-1;
+print "oldest job on tape $tape: $job->{$tape}->{timestamp}\n";
+			next if exists $usedtapes{$tape};
+			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{remounttime};
+			my $listfile = "$dir/requestlists/$tape";
+			open my $lf, ">", $listfile or die "Can't open listfile: $!";
+			foreach my $name (keys %{$job->{$tape}}) {
+				next unless checkrequest($name);
+				print $lf "$dir/out/$name\n";
+			}
+			close $lf;
+
+			if(-z $listfile) {
+				unlink $listfile;
+				next;
+			}
+			$lastmount{$tape} = time;
+print "running worker on $tape\n";
+
+#			spawn worker
+			my $pid;
+			my $j;
+			if ($pid = fork) {
+				$j=$job->{$tape};
+				$j->{pid} = $pid;
+				$j->{listfile} = $listfile;
+				$j->{tape} = $tape;
+				push @workers, $j;
+			}
+			else {
+				undef %usedtapes;
+				undef %reqset;
+				undef $tapelist;
+				undef $job;
+				@workers=();
+				my $indir = $dir . '/in/';
+				my @dsmcopts = split /, /, $conf{'dsmcopts'};
+				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
+				my ($in,$out,$err);
+				$in="A\n";
+				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
+					# files migrated from tape without issue
+					exit 0;
+				} else {
+			                printlog "dsmc retrieve done unsuccessfully at " . localtime() . "\n";
+                			# Any number of requests broke, try again later
+                			exit 1;
+				}
+			}
+		}
+	}
 }
