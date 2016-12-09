@@ -11,7 +11,9 @@ Requirements
 
 At least the following Perl modules need to be installed:
 
-* JSON
+* JSON, IPC:Run3
+
+It is known to work on Perl >= 5.14, but notably 5.10 does not work
 
 Configuration
 -------------
