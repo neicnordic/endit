@@ -104,12 +104,16 @@ while(1) {
 	if (exists $conf{tapefile}) {
 		my $tapefilename = $conf{tapefile};
 		my $newtapemodtime = (stat $tapefilename)[9];
-		if ($newtapemodtime > $tapelistmodtime) {
-			my $newtapelist = Endit::readtapelist($tapefilename);
-			if ($newtapelist) {
-				$tapelist = $newtapelist;
-				$tapelistmodtime = $newtapemodtime;
-			}
+		if(defined $newtapemodtime) {
+			if ($newtapemodtime > $tapelistmodtime) {
+				my $newtapelist = Endit::readtapelist($tapefilename);
+				if ($newtapelist) {
+					$tapelist = $newtapelist;
+					$tapelistmodtime = $newtapemodtime;
+				}
+			} 
+		} else {
+			printlog "Warning: tapefile set to $conf{tapefile} in endit.conf, but this file does not seem to exist\n";
 		}
 	}
 
