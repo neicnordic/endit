@@ -1,0 +1,14 @@
+[Unit]
+Description=ENDIT archiver process
+Documentation=https://github.com/maswan/endit
+Requisite=dcache.service
+After=dcache.service
+
+[Service]
+Type=simple
+ExecStart=/opt/endit/tsmarchiver.pl
+#Restart=on-failure
+User=globus
+
+[Install]
+RequiredBy=endit.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=ENDIT retriever process
+Documentation=https://github.com/maswan/endit
+Requisite=dcache.service
+After=dcache.service
+
+[Service]
+Type=simple
+ExecStart=/opt/endit/tsmretriever.pl
+#Restart=on-failure
+User=globus
+
+[Install]
+RequiredBy=endit.target
