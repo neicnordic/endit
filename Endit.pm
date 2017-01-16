@@ -38,7 +38,8 @@ sub printlog($) {
 	my $now = strftime '%Y-%m-%d %H:%M:%S ', localtime;
 	my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
 	open my $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
-	print $lf $now . $msg;
+	chomp($msg);
+	print $lf $now . $msg . "\n";
 }
 
 # Return filessystem usage (gigabytes)
