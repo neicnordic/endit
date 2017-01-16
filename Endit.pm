@@ -50,7 +50,7 @@ sub printlog($) {
 	my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
 	open my $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
 	chomp($msg);
-	print $lf $now . $msg . "\n";
+	print $lf "$now [$$] $msg\n";
 }
 
 # Return filessystem usage (gigabytes)
