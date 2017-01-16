@@ -102,6 +102,8 @@ sub monthsago {
 	return ($fy-$sy)*12+$fm-$sm;
 }
 
+printlog("$0: Starting...");
+
 while(1) {
 	my @files = ();
 	opendir(TD, $trashdir);

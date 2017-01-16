@@ -78,6 +78,8 @@ my %reqset;
 my %lastmount;
 my @workers;
 
+printlog("$0: Starting...");
+
 # Warning: Infinite loop. Program may not stop.
 while(1) {
 #	sleep to let requester remove requests and pace ourselves

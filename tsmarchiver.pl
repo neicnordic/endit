@@ -29,6 +29,8 @@ $SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
 $SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
 $SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
 
+printlog("$0: Starting...");
+
 while(1) {
 	my $dir = $conf{'dir'} . '/out/';
 	my $usage = getusage($dir);
