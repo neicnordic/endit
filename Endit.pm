@@ -19,6 +19,14 @@ sub readconf($) {
 	my $conffile = shift;
 	my $key;
 	my $val;
+
+	# Sensible defaults
+	$conf{sleeptime} = 60; # Seconds
+	$conf{minusage} = 500; # GB
+	$conf{timeout} = 7200; # Seconds
+	$conf{maxretrievers} = 1; # Number of processes
+	$conf{remounttime} = 600; # Seconds
+
 	open my $cf, '<', $conffile or die "Can't open conffile: $!";
 	while(<$cf>) {
 		next if $_ =~ /^#/;
@@ -27,8 +35,12 @@ sub readconf($) {
 		next unless defined $val;
 		$conf{$key} = $val;
 	}
-	if (!exists $conf{maxretrievers}) {
-		$conf{maxretrievers} = 1;
+
+	# Verify that required parameters are defined
+	foreach my $param (qw{dir logdir hsminstance dsmcopts}) {
+		if(!defined($conf{$param})) {
+			die "$conffile: $param is a required parameter, exiting";
+		}
 	}
 }
 
