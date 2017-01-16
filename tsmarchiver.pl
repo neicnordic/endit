@@ -12,11 +12,6 @@ use Endit qw(%conf readconf printlog getusage);
 $Endit::logsuffix = 'tsmarchiver.log';
 
 readconf('/opt/endit/endit.conf');
-die "No basedir!\n" unless $conf{'dir'};
-warn "No logdir!\n" unless $conf{'logdir'};
-
-printlog "No timeout!\n" unless $conf{'timeout'};
-printlog "No minusage!\n" unless $conf{'minusage'};
 
 # Try to send warn/die messages to log file
 INIT {

@@ -13,7 +13,7 @@ use Endit qw(%conf readconf printlog getusage);
 $Endit::logsuffix = 'tsmdeleter.log';
 
 readconf('/opt/endit/endit.conf');
-die "No basedir!\n" unless $conf{'dir'};
+
 my $filelist = "$conf{'dir'}/tsm-delete-files";
 my $trashdir = "$conf{'dir'}/trash";
 

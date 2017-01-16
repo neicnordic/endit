@@ -14,7 +14,7 @@ use Endit qw(%conf readconf printlog getusage);
 $Endit::logsuffix = 'tsmretriever.log';
 
 readconf('/opt/endit/endit.conf');
-die "No basedir!\n" unless $conf{'dir'};
+
 my $dir = $conf{'dir'};
 my $listfilecounter = 0;
 
