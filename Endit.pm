@@ -54,8 +54,9 @@ sub readconf($) {
 			unlink($tmpf);
 		}
 		else {
+			my $err = $!;
 			unlink($tmpf); # Just in case
-			die "Can't write to directory $conf{dir}/$subdir: $!, exiting";
+			die "Can't write to directory $conf{dir}/$subdir: $err, exiting";
 		}
 	}
 }
