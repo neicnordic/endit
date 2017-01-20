@@ -30,7 +30,7 @@ It is also recommended to tune "minusage" and "timeout" to your needs, this
 is the threshhold definitions for when to flush to tape.
 
 After installing, you need to create the directories "in", "out", "request",
-and "trash" in the same filesystem as the pool.
+"requestlists" and "trash" in the same filesystem as the pool.
 
 After starting dcache you also need to start the three scripts:
 
