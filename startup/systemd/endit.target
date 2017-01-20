@@ -3,6 +3,9 @@ Description=ENDIT running
 Documentation=https://github.com/maswan/endit
 Requisite=dcache.service
 After=dcache.service
+BindsTo=endit-archiver.service
+BindsTo=endit-deleter.service
+BindsTo=endit-retriever.service
 
 [Install]
 WantedBy=multi-user.target
