@@ -42,6 +42,22 @@ sub readconf($) {
 			die "$conffile: $param is a required parameter, exiting";
 		}
 	}
+
+	# Verify that required subdirs are present and writable
+	foreach my $subdir (qw{in out request requestlists trash}) {
+		if(! -d "$conf{dir}/$subdir") {
+			die "Required directory $conf{dir}/$subdir missing, exiting";
+		}
+		my $tmpf = "$conf{dir}/$subdir/.endit.$$";
+		if(open(my $fh, '>', $tmpf)) {
+			close($fh);
+			unlink($tmpf);
+		}
+		else {
+			unlink($tmpf); # Just in case
+			die "Can't write to directory $conf{dir}/$subdir: $!, exiting";
+		}
+	}
 }
 
 sub printlog($) {
