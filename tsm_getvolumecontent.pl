@@ -75,9 +75,21 @@ setauth(id => $opts{u}, passfile => $opts{p});
 
 debug "Starting:";
 
+$opts{N} = "\U$opts{N}";
+
+debug "Node: $opts{N}";
+
 
 # Find out which storagepools are used by the node.
 my @stgpools = dsm_cmd("select STGPOOL_NAME from occupancy where node_name='$opts{N}'") or die "Couldn't list stgpools for node $opts{N}";
+
+if(! @stgpools) {
+	die "No stgpools found for node $opts{N}";
+}
+
+foreach(@stgpools) {
+	debug "stgpool: $_";
+}
 
 my @volumes;
 
