@@ -111,6 +111,9 @@ foreach my $volume (@volumes) {
     foreach my $line (@t) {
         my($nodename, $type, $fsname, $hexfsname, $fsid, $filename, $hexfilename, $isaggr, $size, $segment, $cached) = split (/\t/, $line);
 
+	# Just skip ahead if no filename, likely means no files on volume!
+	next unless($filename);
+
         # Use the location of first segment of files on seq access volumes
         next if ($segment && $segment !~ m!^1/!);
 
