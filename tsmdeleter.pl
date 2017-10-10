@@ -5,6 +5,7 @@ use strict;
 
 use IPC::Run3;
 use POSIX qw(strftime);
+use File::Temp qw /tempfile/;
 
 
 use lib '/opt/endit/';
@@ -14,7 +15,7 @@ $Endit::logsuffix = 'tsmdeleter.log';
 
 readconf('/opt/endit/endit.conf');
 
-my $filelist = "$conf{'dir'}/tsm-delete-files";
+my $filelist = "tsm-delete-files.XXXXX";
 my $trashdir = "$conf{'dir'}/trash";
 
 # Try to send warn/die messages to log file
@@ -104,19 +105,25 @@ sub monthsago {
 
 printlog("$0: Starting...");
 
+# Check writability of needed dirs
+my ($chkfh, $chkfn) = tempfile($filelist, DIR=>$conf{'dir'});
+close($chkfh) || die "Failed closing $chkfn: $!";
+unlink($chkfn);
+
 while(1) {
 	my @files = ();
 	opendir(TD, $trashdir);
 	@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
 	close(TD);
 	if (@files > 0) {
-		unlink $filelist;
-		open(FL, ">$filelist");
-		print FL map { "$conf{'dir'}/out/$_\n"; } @files;
-		close(FL);
-		if(rundelete($filelist)) {
+		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
+		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
+		close($fh) || die "Failed writing to $filename: $!";
+		if(rundelete($filename)) {
 			# Have already warned in rundelete()
 		} else {
+			# Success
+			unlink($filename);
 			havedeleted(@files);
 		}
 	}
@@ -131,14 +138,14 @@ while(1) {
 			@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
 			closedir(TD);
 			if (@files > 0) {
-				unlink $filelist;
-				{
-					open my $fl, '>', $filelist;
-					print $fl map { "$conf{'dir'}/out/$_\n"; } @files;
-				}
-				if(rundelete($filelist)) {
+				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
+				print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
+				close($fh) || die "Failed writing to $filename: $!";
+				if(rundelete($filename)) {
 					# Have already warned in rundelete()
 				} else {
+					# Success
+					unlink($filename);
 					monthdeleted($month, @files);
 				}
 			}
