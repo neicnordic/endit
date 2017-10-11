@@ -101,9 +101,7 @@ sub rundelete {
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		# files removed from tape without issue
 	} else {
-		# something went wrong. log and hope for better luck next time?
-
-		# unless all is: ANS1345E - file already deleted
+		# ANS1345E - file already deleted
 		# or ANS1302E - all files already deleted
 		# Also ignore ANS1278W - irrelevant
 		my @outl = split /\n/m, $out;
@@ -114,7 +112,22 @@ sub rundelete {
 			} else {
 				$reallybroken=1;
 			}
-		
+		}
+		if($reallybroken) {
+			# something went wrong. log and hope for better luck next time?
+			my $msg = "dsmc delete failure: ";
+			if ($? == -1) {
+				$msg .= "failed to execute: $!";
+			}
+			elsif ($? & 127) {
+				$msg .= sprintf "child died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
+			}
+			else {
+				$msg .= sprintf "child exited with value %d\n", $? >> 8;
+			}
+			printlog "$msg";
+			printlog "STDERR: $err";
+			printlog "STDOUT: $out";
 		}
 	}
 	return $reallybroken;
