@@ -79,7 +79,7 @@ while(1) {
 		else {
 			$msg .= sprintf "child exited with value %d\n", $? >> 8;
 		}
-		printlog "dsmc archive failure: $msg";
+		printlog "$msg";
 		printlog "STDERR: $err";
 		printlog "STDOUT: $out";
 
