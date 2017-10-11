@@ -235,7 +235,20 @@ print "running worker on $tape\n";
 					# files migrated from tape without issue
 					exit 0;
 				} else {
-			                printlog "dsmc retrieve done unsuccessfully at " . localtime() . "\n";
+					my $msg = "dsmc retrieve failure: ";
+					if ($? == -1) {
+						$msg .= "failed to execute: $!";
+					}
+					elsif ($? & 127) {
+						$msg .= sprintf "child died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
+					}
+					else {
+						$msg .= sprintf "child exited with value %d\n", $? >> 8;
+					}
+					printlog "$msg";
+					printlog "STDERR: $err";
+					printlog "STDOUT: $out";
+
                 			# Any number of requests broke, try again later
                 			exit 1;
 				}
