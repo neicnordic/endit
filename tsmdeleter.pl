@@ -144,10 +144,12 @@ while(1) {
 		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
+		printlog "Trying to delete " . scalar(@files) . " files from file list $filename";
 		if(rundelete($filename)) {
 			# Have already warned in rundelete()
 		} else {
 			# Success
+			printlog "Successfully deleted " . scalar(@files) . " files from file list $filename";
 			unlink($filename);
 			havedeleted(@files);
 		}
@@ -166,10 +168,12 @@ while(1) {
 				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
 				print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 				close($fh) || die "Failed writing to $filename: $!";
+				printlog "Retrying month $month deletion of " . scalar(@files) . " files from file list $filename";
 				if(rundelete($filename)) {
 					# Have already warned in rundelete()
 				} else {
 					# Success
+					printlog "Successfully reprocessed month $month deletion of " . scalar(@files) . " files from file list $filename";
 					unlink($filename);
 					monthdeleted($month, @files);
 				}
