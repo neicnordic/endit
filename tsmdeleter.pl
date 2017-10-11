@@ -68,16 +68,25 @@ sub monthdeleted {
 sub havedeleted {
 	my @files = @_;
 	my $thismonth = strftime '%Y-%m', localtime;
-	if(-d $conf{'dir'} . '/trash/'. $thismonth) {
-		# Already created
-	} else {
-		mkdir  $conf{'dir'} . '/trash/'. $thismonth;
+	my $tmdir = "$trashdir/$thismonth";
+
+	if(! -d $tmdir) {
+		if(!mkdir $tmdir) {
+			printlog "mkdir $tmdir failed: $!";
+			# No use in continuing, will just emit loads of errors
+			return;
+		}
 	}
 	foreach my $trf (@files) {
-		if(rename($conf{'dir'} . '/trash/' . $trf, $conf{'dir'} . '/trash/'. $thismonth . '/' . $trf)) {
-			# To be run again next month
-		} else {
-			 printlog "rename trash/$trf to trash/$thismonth/$trf failed: $!";
+		# Move processed trash-files, all files will be reprocessed
+		# again next month to ensure they really are deleted.
+		# There are corner cases to in dsmc where status is unknown
+		# so this is the easy solution to ensure deletion.
+		# FIXME: An optimization is to only reprocess those files
+		# which we aren't sure got deleted.
+
+		if(!rename("$trashdir/$trf", "$tmdir/$trf")) {
+			 printlog "rename $trashdir/$trf to $tmdir/$trf failed: $!";
 		}
 	}
 }
