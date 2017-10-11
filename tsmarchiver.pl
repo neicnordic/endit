@@ -71,5 +71,8 @@ while(1) {
 		printlog localtime() . ": warning, dsmc archive failure: $!\n";
 		printlog $err;
 		printlog $out;
+
+		# Avoid spinning on persistent errors.
+		sleep 60;
 	}
 }
