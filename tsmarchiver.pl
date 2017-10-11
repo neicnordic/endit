@@ -68,9 +68,20 @@ while(1) {
 		# files migrated to tape without issue
 	} else {
 		# something went wrong. log and hope for better luck next time?
-		printlog localtime() . ": warning, dsmc archive failure: $!\n";
-		printlog $err;
-		printlog $out;
+		my $msg = "dsmc archive failure: ";
+		if ($? == -1) {
+			$msg .= "failed to execute: $!";
+		}
+		elsif ($? & 127) {
+			$msg .= sprintf "child died with signal %d, %s coredump",
+			       ($? & 127),  ($? & 128) ? 'with' : 'without';
+		}
+		else {
+			$msg .= sprintf "child exited with value %d\n", $? >> 8;
+		}
+		printlog "dsmc archive failure: $msg";
+		printlog "STDERR: $err";
+		printlog "STDOUT: $out";
 
 		# Avoid spinning on persistent errors.
 		sleep 60;
