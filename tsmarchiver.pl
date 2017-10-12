@@ -58,7 +58,6 @@ while(1) {
 		$usage = getusage($dir);
 	}
 
-	my $date=strftime "%Y%m",localtime;
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
 		"-description=endit","$dir/*");
