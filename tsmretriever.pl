@@ -196,12 +196,12 @@ print "oldest job on tape $tape: $job->{$tape}->{timestamp}\n";
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{remounttime};
 			my $listfile = "$dir/requestlists/$tape";
-			open my $lf, ">", $listfile or die "Can't open listfile: $!";
+			open my $lf, ">", $listfile or die "Can't open $listfile: $!";
 			foreach my $name (keys %{$job->{$tape}}) {
 				next unless checkrequest($name);
 				print $lf "$dir/out/$name\n";
 			}
-			close $lf;
+			close $lf or die "Closing $listfile failed: $!";
 
 			if(-z $listfile) {
 				unlink $listfile;
@@ -226,6 +226,9 @@ print "running worker on $tape\n";
 				undef $tapelist;
 				undef $job;
 				@workers=();
+
+				printlog "Trying to retrieve files from tape $tape";
+
 				my $indir = $dir . '/in/';
 				my @dsmcopts = split /, /, $conf{'dsmcopts'};
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
@@ -233,6 +236,7 @@ print "running worker on $tape\n";
 				$in="A\n";
 				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
 					# files migrated from tape without issue
+					printlog "Successfully retrieved files from tape $tape";
 					exit 0;
 				} else {
 					my $msg = "dsmc retrieve failure: ";
