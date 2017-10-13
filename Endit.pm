@@ -34,8 +34,12 @@ our %conf;
 sub printlog($) {
 	my $msg = shift;
 	my $now = strftime '%Y-%m-%d %H:%M:%S', localtime;
-	my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
-	open my $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
+
+	my $lf = *STDOUT;
+	if($conf{'logdir'}) {
+		my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
+		open $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
+	}
 	chomp($msg);
 	print $lf "$now [$$] $msg\n";
 }
@@ -52,7 +56,8 @@ sub readconf() {
 	$conf{maxretrievers} = 1; # Number of processes
 	$conf{remounttime} = 600; # Seconds
 
-	printlog "Reading configuration from $conffile";
+	printlog "Using configuration file $conffile";
+
 	open my $cf, '<', $conffile or die "Can't open $conffile: $!";
 	while(<$cf>) {
 		next if $_ =~ /^#/;
