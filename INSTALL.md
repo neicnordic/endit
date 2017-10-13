@@ -1,3 +1,10 @@
+# Installation
+
+More verbose instructions are available at
+https://wiki.neic.no/wiki/DCache_TSM_interface
+
+## Quick version
+
 *  Setup TSM so that the user running dcache can "dsmc archive" and "dsmc
    retrieve" files. If you want to have several pool-nodes talking to tape,
    you probably want to setup a TSM node that you can share accross machines.
