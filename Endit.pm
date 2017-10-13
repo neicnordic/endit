@@ -53,7 +53,7 @@ sub readconf() {
 	$conf{remounttime} = 600; # Seconds
 
 	printlog "Reading configuration from $conffile";
-	open my $cf, '<', $conffile or die "Can't open conffile: $!";
+	open my $cf, '<', $conffile or die "Can't open $conffile: $!";
 	while(<$cf>) {
 		next if $_ =~ /^#/;
 		chomp;
