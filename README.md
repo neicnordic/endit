@@ -35,7 +35,7 @@ After starting dcache you also need to start the three scripts:
 * tsmretriever.pl
 * tsmdeleter.pl
 
-See [startup/] for details/examples.
+See [startup/README.md](startup/README.md) for details/examples.
 
 # Multiple instances
 
