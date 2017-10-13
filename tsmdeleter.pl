@@ -29,7 +29,7 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmdeleter.log';
 
-readconf('/opt/endit/endit.conf');
+readconf();
 
 my $filelist = "tsm-delete-files.XXXXX";
 my $trashdir = "$conf{'dir'}/trash";

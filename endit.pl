@@ -35,7 +35,7 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'endit.log';
 
-readconf('/opt/endit/endit.conf'); 
+readconf(); 
 die "No basedir!\n" unless $conf{'dir'};
 warn "No logdir!\n" unless $conf{'logdir'};
 warn "No logsuffix!\n" unless $Endit::logsuffix;

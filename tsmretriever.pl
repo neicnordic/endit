@@ -29,7 +29,7 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmretriever.log';
 
-readconf('/opt/endit/endit.conf');
+readconf();
 
 my $dir = $conf{'dir'};
 my $listfilecounter = 0;

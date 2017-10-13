@@ -31,8 +31,17 @@ BEGIN {
 our $logsuffix;
 our %conf;
 
-sub readconf($) {
-	my $conffile = shift;
+sub printlog($) {
+	my $msg = shift;
+	my $now = strftime '%Y-%m-%d %H:%M:%S', localtime;
+	my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
+	open my $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
+	chomp($msg);
+	print $lf "$now [$$] $msg\n";
+}
+
+sub readconf() {
+	my $conffile = '/opt/endit/endit.conf';
 	my $key;
 	my $val;
 
@@ -43,6 +52,7 @@ sub readconf($) {
 	$conf{maxretrievers} = 1; # Number of processes
 	$conf{remounttime} = 600; # Seconds
 
+	printlog "Reading configuration from $conffile";
 	open my $cf, '<', $conffile or die "Can't open conffile: $!";
 	while(<$cf>) {
 		next if $_ =~ /^#/;
@@ -75,15 +85,6 @@ sub readconf($) {
 			die "Can't write to directory $conf{dir}/$subdir: $err, exiting";
 		}
 	}
-}
-
-sub printlog($) {
-	my $msg = shift;
-	my $now = strftime '%Y-%m-%d %H:%M:%S', localtime;
-	my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
-	open my $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
-	chomp($msg);
-	print $lf "$now [$$] $msg\n";
 }
 
 # Return filessystem usage (gigabytes)
