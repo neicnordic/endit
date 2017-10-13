@@ -56,6 +56,10 @@ sub readconf() {
 	$conf{maxretrievers} = 1; # Number of processes
 	$conf{remounttime} = 600; # Seconds
 
+	if($ENV{ENDIT_CONFIG}) {
+		$conffile = $ENV{ENDIT_CONFIG};
+	}
+
 	printlog "Using configuration file $conffile";
 
 	open my $cf, '<', $conffile or die "Can't open $conffile: $!";

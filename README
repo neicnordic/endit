@@ -38,6 +38,11 @@ After starting dcache you also need to start the three scripts:
 * tsmretriever.pl
 * tsmdeleter.pl
 
+See startup/ for details/examples.
+
+To run multiple instances, the ENDIT_CONFIG environment variable can be set
+to use a different configuration file.
+
 The configuration of the endit-provider dCache plugin is done through the
 admin interface.
 
