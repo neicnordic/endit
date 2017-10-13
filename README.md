@@ -35,7 +35,7 @@ After starting dcache you also need to start the three scripts:
 * tsmretriever.pl
 * tsmdeleter.pl
 
-See startup/ for details/examples.
+See [startup/] for details/examples.
 
 # Multiple instances
 
@@ -54,7 +54,7 @@ License: GPL
 
 # Contributors
 
-This project existed for approximately 10 years before it added to GitHub,
+This project existed for approximately 10 years before it was added to GitHub,
 with contributions from:
 
 * Mattias Wadenstein <maswan@hpc2n.umu.se>
