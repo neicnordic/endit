@@ -67,6 +67,8 @@ sub readconf() {
 		next if $_ =~ /^#/;
 		chomp;
 		next unless($_);
+		next if(/^\s+$/);
+
 		($key,$val) = split /:\s+/;
 		if(!defined($key) || !defined($val) || $key =~ /^\s/ || $key =~ /\s$/) {
 			warn "Garbage config line: '$_'";
