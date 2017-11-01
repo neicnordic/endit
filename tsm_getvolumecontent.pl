@@ -130,12 +130,16 @@ foreach my $volume (@volumes) {
 
 debug "Finished, total " . scalar (keys %files) . " entries";
 
-debug "Writing text file $opts{f}";
-open(my $fh, '>', $opts{f}) || die "Unable to open $opts{f}: $!";
+my $tmpf = "$opts{f}.$$"; # Assume we're alone in the destdir
+debug "Writing volume contents to file $tmpf";
+open(my $fh, '>', $tmpf) || die "Unable to open $opts{f}: $!";
 my($key,$value);
 while (($key,$value) = each %files) {
     print $fh "$key\t$value\n" || die "Writing $opts{f}: $!";
 }
-close $fh || die "Closing $opts{f}: $!";
-debug "Done.";
+close $fh || die "Closing $tmpf: $!";
+debug "Done. Renaming $tmpf to $opts{f}";
+rename($tmpf, $opts{f}) || die "Rename $tmpf to $opts{f}: $!";
+
+debug "All done. Exiting.";
 exit(0);
