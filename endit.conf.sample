@@ -25,5 +25,5 @@ tapefile: /scratch/MIGRTEST.tapes.20160401
 # When in concurrent mode, don't remount tapes more often than this, seconds
 remounttime: 600
 
-# Some debug output
-# verbose=1
+# Enable verbose logging
+# verbose: 1
