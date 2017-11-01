@@ -66,8 +66,12 @@ sub readconf() {
 	while(<$cf>) {
 		next if $_ =~ /^#/;
 		chomp;
-		($key,$val) = split /: /;
-		next unless defined $val;
+		next unless($_);
+		($key,$val) = split /:\s+/;
+		if(!defined($key) || !defined($val) || $key =~ /^\s/ || $key =~ /\s$/) {
+			warn "Garbage config line: '$_'";
+			next;
+		}
 		$conf{$key} = $val;
 	}
 
