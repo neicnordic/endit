@@ -22,7 +22,6 @@ use strict;
 use IPC::Run3;
 use POSIX qw( WNOHANG );
 use JSON;
-use Data::Dumper;
 
 use lib '/opt/endit/';
 use Endit qw(%conf readconf printlog getusage);

@@ -24,8 +24,6 @@ use strict;
 use Getopt::Std;
 use HPC2NTSMUtil;
 
-use Data::Dumper;
-
 # Global variables
 my ($rev);
 $rev = '$Revision$';
