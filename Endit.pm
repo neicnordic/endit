@@ -71,7 +71,7 @@ sub readconf() {
 
 		($key,$val) = split /:\s+/;
 		if(!defined($key) || !defined($val) || $key =~ /^\s/ || $key =~ /\s$/) {
-			warn "Garbage config line: '$_'";
+			die "Aborting on garbage config line: '$_'";
 			next;
 		}
 		$conf{$key} = $val;
