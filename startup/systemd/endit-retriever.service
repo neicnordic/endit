@@ -1,6 +1,6 @@
 [Unit]
 Description=ENDIT retriever process
-Documentation=https://github.com/maswan/endit
+Documentation=https://github.com/neicnordic/endit
 Requisite=dcache.service
 After=dcache.service
 
