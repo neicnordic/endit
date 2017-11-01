@@ -18,7 +18,7 @@ sleeptime: 60
 # options to dsmc, ", "-delimited list.
 dsmcopts: -asnode=MIGRTEST, -errorlogname=/var/log/dcache/dsmerror.log
 
-# Maximum numbeer of concurrent dsmc retrievers
+# Maximum number of concurrent dsmc retrievers
 maxretrievers: 4
 # Tape hints file for concurrent dsmc retrievers
 tapefile: /scratch/MIGRTEST.tapes.20160401
