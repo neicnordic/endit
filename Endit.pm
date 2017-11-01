@@ -113,8 +113,8 @@ sub getusage($) {
 }
 
 sub readtapelist($) {
-	print "reading tape list" if $conf{verbose};
 	my $tapefile = shift;
+	printlog "reading tape list $tapefile" if $conf{verbose};
 	my $out = {};
 	open my $tf, '<', $tapefile or return undef;
 	while (<$tf>) {
