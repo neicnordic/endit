@@ -35,13 +35,23 @@ sub printlog($) {
 	my $msg = shift;
 	my $now = strftime '%Y-%m-%d %H:%M:%S', localtime;
 
-	my $lf = *STDOUT;
+	my $lf;
 	if($conf{'logdir'}) {
 		my $logfilename = $conf{'logdir'} . '/' . $logsuffix;
 		open $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
 	}
+
 	chomp($msg);
-	print $lf "$now [$$] $msg\n";
+	my $str = "$now [$$] $msg\n";
+
+	if($lf) {
+		print $lf $str;
+		if(!close($lf)) {
+			print $str;
+		}
+	} else {
+		print $str;
+	}
 }
 
 sub readconf() {
