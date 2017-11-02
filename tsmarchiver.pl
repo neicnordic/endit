@@ -47,6 +47,7 @@ $SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
 
 printlog("$0: Starting...");
 
+my $timer;
 while(1) {
 	my $dir = $conf{'dir'} . '/out/';
 
@@ -61,15 +62,22 @@ while(1) {
 	}
 
 	my $usage = getusage($dir);
-	my $timer = 0;
-	while ($usage<$conf{'minusage'} && $timer <$conf{'timeout'}) {
-		printlog "Only $usage GiB used, sleeping a while (slept $timer)" if($conf{verbose});
-		sleep $conf{sleeptime};
-		$timer+=$conf{sleeptime};
-		$usage = getusage($dir);
+	my $usagestr = sprintf("%.03f GiB in %d files", $usage, $filecount);
+
+	if($usage < $conf{minusage}) {
+		if(!defined($timer)) {
+			$timer = 0;
+		}
+		if($timer < $conf{timeout}) {
+			printlog "Only $usagestr, sleeping a while (slept $timer s)" if($conf{verbose});
+			sleep $conf{sleeptime};
+			$timer += $conf{sleeptime};
+			next;
+		}
 	}
 
-	my $usagestr = sprintf("%.03f GiB in %d files", $usage, $filecount);
+	$timer = undef;
+
 	printlog "Trying to archive files from $dir - $usagestr";
 
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
