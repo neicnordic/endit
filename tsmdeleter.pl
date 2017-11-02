@@ -149,10 +149,10 @@ close($chkfh) || die "Failed closing $chkfn: $!";
 unlink($chkfn);
 
 while(1) {
-	my @files = ();
-	opendir(TD, $trashdir);
-	@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
-	close(TD);
+	opendir(my $td, $trashdir) || die "opendir $trashdir: $!";
+	my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($td);
+	closedir($td);
+
 	if (@files > 0) {
 		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>0);
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
@@ -169,15 +169,20 @@ while(1) {
 		}
 	}
 	my $thismonth = strftime '%Y-%m', localtime;
-	my @olddirs = ();
-	opendir(TD, $trashdir);
-	@olddirs = grep { /^[0-9]{4}-[0-9]{2}/ } readdir(TD);
-	close(TD);
+
+	opendir(my $tm, $trashdir) || die "opendir $trashdir: $!";
+	my @olddirs = grep { /^[0-9]{4}-[0-9]{2}/ } readdir($tm);
+	closedir($tm);
 	foreach my $month (@olddirs) {
 		if(monthsago($thismonth,$month)>1) {
-			opendir(TD,$trashdir . '/' . $month);
-			@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
-			closedir(TD);
+			my $odh;
+			my $od = $trashdir . '/' . $month;
+			unless(opendir($odh, $od)) {
+				warn "opendir $od: $!";
+				next;
+			}
+			@files = grep { /^[0-9A-Fa-f]+$/ } readdir($odh);
+			closedir($odh);
 			if (@files > 0) {
 				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>0);
 				print $fh map { "$conf{'dir'}/out/$_\n"; } @files;

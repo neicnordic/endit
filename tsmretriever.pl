@@ -143,9 +143,10 @@ while(1) {
 #	read current requests
 	{
 		%reqset=();
-		opendir(REQUEST,$dir . '/request/');
-		my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir(REQUEST); # omit entries with extensions
-		closedir(REQUEST);
+		my $reqdir = "$dir . '/request/";
+		opendir(my $rd, $reqdir) || die "opendir $reqdir: $!";
+		my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
+		closedir($rd);
 		if (@requests) {
 			foreach my $req (@requests) {
 #				It'd be nice to do this here, but takes way too long with a large request list. Instead we only check it when making the requestlist per tape.
