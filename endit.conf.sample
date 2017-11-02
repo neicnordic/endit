@@ -12,7 +12,8 @@ hsminstance: hpc2n.umu.se
 minusage: 500
 # Or push to tape anyway after these many seconds
 timeout: 7200
-# Sleep for this many seconds between retriever rounds, reasonable range 10-1000
+
+# Sleep for this many seconds between each cycle, reasonable range 10-1000
 sleeptime: 60
 
 # options to dsmc, ", "-delimited list.

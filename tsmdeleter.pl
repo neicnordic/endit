@@ -194,5 +194,5 @@ while(1) {
 		}
 	}
 
-	sleep 1800;
+	sleep $conf{sleeptime};
 }

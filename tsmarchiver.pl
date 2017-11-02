@@ -53,8 +53,8 @@ while(1) {
 	my $timer = 0;
 	while ($usage<$conf{'minusage'} && $timer <$conf{'timeout'}) {
 		# print "Only $usage used, sleeping a while (slept $timer)\n";
-		sleep 60;
-		$timer+=60;
+		sleep $conf{sleeptime};
+		$timer+=$conf{sleeptime};
 		$usage = getusage($dir);
 	}
 
@@ -86,6 +86,6 @@ while(1) {
 		printlog "STDOUT: $out";
 
 		# Avoid spinning on persistent errors.
-		sleep 60;
+		sleep $conf{sleeptime};
 	}
 }
