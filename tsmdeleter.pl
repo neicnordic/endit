@@ -154,12 +154,13 @@ while(1) {
 	@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
 	close(TD);
 	if (@files > 0) {
-		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
+		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>0);
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
 		printlog "Trying to delete " . scalar(@files) . " files from file list $filename";
 		if(rundelete($filename)) {
 			# Have already warned in rundelete()
+			# Explicitly not unlink():ing failed filelist
 		} else {
 			# Success
 			printlog "Successfully deleted " . scalar(@files) . " files from file list $filename";
@@ -178,12 +179,13 @@ while(1) {
 			@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
 			closedir(TD);
 			if (@files > 0) {
-				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
+				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>0);
 				print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 				close($fh) || die "Failed writing to $filename: $!";
 				printlog "Retrying month $month deletion of " . scalar(@files) . " files from file list $filename";
 				if(rundelete($filename)) {
 					# Have already warned in rundelete()
+					# Explicitly not unlink():ing failed filelist
 				} else {
 					# Success
 					printlog "Successfully reprocessed month $month deletion of " . scalar(@files) . " files from file list $filename";
