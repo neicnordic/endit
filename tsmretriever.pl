@@ -97,6 +97,29 @@ printlog("$0: Starting...");
 
 # Warning: Infinite loop. Program may not stop.
 while(1) {
+#	load/refresh tape list
+	if (exists $conf{tapefile}) {
+		my $tapefilename = $conf{tapefile};
+		my $newtapemodtime = (stat $tapefilename)[9];
+		if(defined $newtapemodtime) {
+			if ($newtapemodtime > $tapelistmodtime) {
+				my $newtapelist = Endit::readtapelist($tapefilename);
+				if ($newtapelist) {
+					my $loadtype = "loaded";
+					if(scalar(keys(%{$tapelist}))) {
+						$loadtype = "reloaded";
+					}
+					printlog "Tape list $tapefilename ${loadtype}, " . scalar(keys(%{$newtapelist})) . " entries.";
+
+					$tapelist = $newtapelist;
+					$tapelistmodtime = $newtapemodtime;
+				}
+			} 
+		} else {
+			printlog "Warning: tapefile set to $conf{tapefile} in endit.conf, but this file does not seem to exist\n";
+		}
+	}
+
 #	sleep to let requester remove requests and pace ourselves
 	sleep $conf{sleeptime};
 
@@ -115,29 +138,6 @@ while(1) {
 			$w;
 		} @workers;
 		@workers = grep { $_->{pid} } @workers;
-	}
-
-#	refresh tape list
-	if (exists $conf{tapefile}) {
-		my $tapefilename = $conf{tapefile};
-		my $newtapemodtime = (stat $tapefilename)[9];
-		if(defined $newtapemodtime) {
-			if ($newtapemodtime > $tapelistmodtime) {
-				my $newtapelist = Endit::readtapelist($tapefilename);
-				if ($newtapelist) {
-					my $loadtype = "loaded";
-					if(scalar(keys(%{$tapelist}))) {
-						$loadtype = "reloaded";
-					}
-					printlog "Tape list $tapefilename $loadtype " . scalar(keys(%{$newtapelist})) . " entries.";
-
-					$tapelist = $newtapelist;
-					$tapelistmodtime = $newtapemodtime;
-				}
-			} 
-		} else {
-			printlog "Warning: tapefile set to $conf{tapefile} in endit.conf, but this file does not seem to exist\n";
-		}
 	}
 
 #	read current requests
