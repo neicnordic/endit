@@ -125,6 +125,12 @@ while(1) {
 			if ($newtapemodtime > $tapelistmodtime) {
 				my $newtapelist = Endit::readtapelist($tapefilename);
 				if ($newtapelist) {
+					my $loadtype = "loaded";
+					if(scalar(keys(%{$tapelist}))) {
+						$loadtype = "reloaded";
+					}
+					printlog "Tape list $tapefilename $loadtype " . scalar(keys(%{$newtapelist})) . " entries.";
+
 					$tapelist = $newtapelist;
 					$tapelistmodtime = $newtapemodtime;
 				}
