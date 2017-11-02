@@ -130,6 +130,7 @@ sub readtapelist($) {
 		$tape=~tr/a-zA-Z0-9.-/_/cs;
 		$out->{$id} = $tape;
 	}
+	close($tf);
 	return $out;
 }
 
