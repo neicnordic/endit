@@ -143,7 +143,7 @@ while(1) {
 #	read current requests
 	{
 		%reqset=();
-		my $reqdir = "$dir . '/request/";
+		my $reqdir = "$dir/request/";
 		opendir(my $rd, $reqdir) || die "opendir $reqdir: $!";
 		my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
 		closedir($rd);
