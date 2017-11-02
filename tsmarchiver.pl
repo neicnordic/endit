@@ -49,6 +49,17 @@ printlog("$0: Starting...");
 
 while(1) {
 	my $dir = $conf{'dir'} . '/out/';
+
+        opendir(my $dh, $dir) || die "opendir $dir: $!";
+        my $filecount = scalar(grep { /^[0-9A-Fa-f]+$/ } readdir($dh));
+        closedir($dh);
+
+	if(!$filecount) {
+		# No files, just sleep until next iteration.
+		sleep($conf{sleeptime});
+		next;
+	}
+
 	my $usage = getusage($dir);
 	my $timer = 0;
 	while ($usage<$conf{'minusage'} && $timer <$conf{'timeout'}) {
@@ -58,7 +69,8 @@ while(1) {
 		$usage = getusage($dir);
 	}
 
-	printlog "Trying to archive files from $dir - $usage GiB used.";
+	my $usagestr = sprintf("%.03f GiB in %d files", $usage, $filecount);
+	printlog "Trying to archive files from $dir - $usagestr";
 
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
