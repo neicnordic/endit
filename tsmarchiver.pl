@@ -63,7 +63,7 @@ while(1) {
 	my $usage = getusage($dir);
 	my $timer = 0;
 	while ($usage<$conf{'minusage'} && $timer <$conf{'timeout'}) {
-		# print "Only $usage used, sleeping a while (slept $timer)\n";
+		printlog "Only $usage GiB used, sleeping a while (slept $timer)" if($conf{verbose});
 		sleep $conf{sleeptime};
 		$timer+=$conf{sleeptime};
 		$usage = getusage($dir);
