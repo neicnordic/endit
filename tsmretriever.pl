@@ -198,7 +198,7 @@ while(1) {
 #		start jobs on tapes not already taken up until maxretrievers
 		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
 			last if $#workers >= $conf{'maxretrievers'}-1;
-			printlog "Oldest job on volume $tape: $job->{$tape}->{timestamp}" if($conf{verbose});
+			printlog "Oldest job on volume $tape: " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{timestamp})) if($conf{verbose});
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{remounttime};
 			my $lfentries = 0;
