@@ -85,7 +85,7 @@ while(1) {
 		"-description=endit","$dir/*");
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		printlog "Successfully archived files from $dir.";
+		printlog "Successfully archived files from $dir";
 		printlog $out if $conf{'verbose'};
 		# files migrated to tape without issue
 	} else {
