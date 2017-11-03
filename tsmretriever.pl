@@ -20,7 +20,7 @@ use warnings;
 use strict;
 
 use IPC::Run3;
-use POSIX qw( WNOHANG );
+use POSIX qw(strftime WNOHANG);
 use JSON;
 
 use lib '/opt/endit/';
