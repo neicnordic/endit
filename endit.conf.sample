@@ -1,6 +1,7 @@
-# Configuration file for ENDIT
+# Sample configuration file for ENDIT
 # Note, comments have to start with # in the first character of the line
 # Otherwise, simple "key: value" pairs
+
 # dir is the base dir, with the directories "in", "out", "pool", "request", etc
 dir: /grid/pool/
 logdir: /var/log/dcache/
@@ -21,8 +22,11 @@ dsmcopts: -asnode=MIGRTEST, -errorlogname=/var/log/dcache/dsmerror.log
 
 # Maximum number of concurrent dsmc retrievers
 maxretrievers: 4
-# Tape hints file for concurrent dsmc retrievers
-tapefile: /scratch/MIGRTEST.tapes.20160401
+
+# Tape hints file for concurrent dsmc retrievers. Generate using
+# tsm_getvolumecontent.pl for the -asnode user you configured in dsmcopts.
+tapefile: /var/spool/endit/tapehints/MIGRTEST.txt
+
 # When in concurrent mode, don't remount tapes more often than this, seconds
 remounttime: 600
 
