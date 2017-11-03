@@ -65,14 +65,14 @@ sub checkrequest($) {
 		my $in_filename = $conf{'dir'} . '/in/' . $req;
 		my $in_filesize=(stat $in_filename)[7];
 		if(defined $in_filesize && $in_filesize == $state->{file_size}) {
-			printlog "Not doing $req due to file of correct size already in in\n" if $conf{'verbose'};
+			printlog "Not doing $req due to file of correct size already present" if $conf{'verbose'};
 			return undef;
 		}
 	}
 	if($parent_pid && getpgrp($parent_pid) > 0) {
 		return { parent_pid => $parent_pid };
 	} else {
-		printlog "Broken request file $req_filename\n";
+		printlog "Broken request file $req_filename, removing";
 		unlink $req_filename;
 		return undef;
 	}
@@ -116,7 +116,7 @@ while(1) {
 				}
 			} 
 		} else {
-			printlog "Warning: tapefile set to $conf{tapefile} in endit.conf, but this file does not seem to exist\n";
+			printlog "Warning: tapefile set to $conf{tapefile}, but this file does not seem to exist";
 		}
 	}
 
@@ -182,7 +182,7 @@ while(1) {
 			if (exists $req->{tape}) {
 				$tape = $req->{tape};
 			} else {
-				printlog "Warning: tape should have been set for $name, but setting it again!\n";
+				warn "tape should have been set for $name, but setting it again!";
 				$tape = 'default';
 			}
 			$job->{$tape}->{$name} = $req;
@@ -198,14 +198,16 @@ while(1) {
 #		start jobs on tapes not already taken up until maxretrievers
 		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
 			last if $#workers >= $conf{'maxretrievers'}-1;
-print "oldest job on tape $tape: $job->{$tape}->{timestamp}\n";
+			printlog "Oldest job on volume $tape: $job->{$tape}->{timestamp}" if($conf{verbose});
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{remounttime};
+			my $lfentries = 0;
 			my $listfile = "$dir/requestlists/$tape";
 			open my $lf, ">", $listfile or die "Can't open $listfile: $!";
 			foreach my $name (keys %{$job->{$tape}}) {
 				next unless checkrequest($name);
 				print $lf "$dir/out/$name\n";
+				$lfentries ++;
 			}
 			close $lf or die "Closing $listfile failed: $!";
 
@@ -214,7 +216,7 @@ print "oldest job on tape $tape: $job->{$tape}->{timestamp}\n";
 				next;
 			}
 			$lastmount{$tape} = time;
-print "running worker on $tape\n";
+			printlog "Running worker on volume $tape ($lfentries entries)";
 
 #			spawn worker
 			my $pid;
@@ -233,7 +235,7 @@ print "running worker on $tape\n";
 				undef $job;
 				@workers=();
 
-				printlog "Trying to retrieve files from tape $tape";
+				printlog "Trying to retrieve files from volume $tape using file list $listfile" if($conf{verbose});
 
 				my $indir = $dir . '/in/';
 				my @dsmcopts = split /, /, $conf{'dsmcopts'};
@@ -242,10 +244,10 @@ print "running worker on $tape\n";
 				$in="A\n";
 				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
 					# files migrated from tape without issue
-					printlog "Successfully retrieved files from tape $tape";
+					printlog "Successfully retrieved files from volume $tape";
 					exit 0;
 				} else {
-					my $msg = "dsmc retrieve failure: ";
+					my $msg = "dsmc retrieve failure volume $tape file list $listfile: ";
 					if ($? == -1) {
 						$msg .= "failed to execute: $!";
 					}
