@@ -120,24 +120,49 @@ while(1) {
 		}
 	}
 
-#	sleep to let requester remove requests and pace ourselves
-	sleep $conf{sleeptime};
-
 #	check if any dsmc workers are done
 	if(@workers) {
-		@workers = map {
-			my $w = $_;
-			my $wres = waitpid($w->{pid}, WNOHANG);
-			my $rc = $?;
-			if ($wres == $w->{pid}) {
-#				Child is done
-				$w->{pid} = undef;
-#				Intentionally not caring about results. We'll retry and if stuff is really broken, the admins will notice from hanging restore requests anywau
-				unlink $w->{listfile};
-			} 
-			$w;
-		} @workers;
-		@workers = grep { $_->{pid} } @workers;
+		my $timer = 0;
+		my $atmax = 0;
+		$atmax = 1 if(scalar(@workers) >= $conf{'maxretrievers'});
+
+		while($timer < $conf{sleeptime}) {
+			@workers = map {
+				my $w = $_;
+				my $wres = waitpid($w->{pid}, WNOHANG);
+				my $rc = $?;
+				if ($wres == $w->{pid}) {
+					# Child is done
+					$w->{pid} = undef;
+					# Intentionally not caring about
+					# results. We'll retry and if stuff is
+					# really broken, the admins will notice
+					# from hanging restore requests anyway.
+					unlink $w->{listfile};
+				} 
+				$w;
+			} @workers;
+			@workers = grep { $_->{pid} } @workers;
+
+			# Break early if we were waiting for a worker
+			# to be freed up.
+			if($atmax && scalar(@workers) < $conf{'maxretrievers'})
+			{
+				last;
+			}
+
+			my $st = $conf{sleeptime};
+			if($atmax) {
+				# Check frequently if waiting for free worker
+				$st = 1;
+			}
+			$timer += $st;
+			sleep($st);
+		}
+	}
+	else {
+		# sleep to let requester remove requests and pace ourselves
+		sleep $conf{sleeptime};
 	}
 
 #	read current requests
@@ -169,7 +194,7 @@ while(1) {
 	}
 
 #	if any requests and free worker
-	if (%reqset && $#workers < $conf{'maxretrievers'}-1) {
+	if (%reqset && scalar(@workers) < $conf{'maxretrievers'}) {
 #		make list blacklisting pending tapes
 		my %usedtapes;
 		my $job = {};
@@ -197,7 +222,8 @@ while(1) {
 
 #		start jobs on tapes not already taken up until maxretrievers
 		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
-			last if $#workers >= $conf{'maxretrievers'}-1;
+			last if(scalar(@workers) >= $conf{'maxretrievers'});
+
 			printlog "Oldest job on volume $tape: " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{timestamp})) if($conf{verbose});
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{remounttime};
@@ -245,6 +271,8 @@ while(1) {
 				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
 					# files migrated from tape without issue
 					printlog "Successfully retrieved files from volume $tape";
+					# sleep to let requester remove requests
+					sleep 3;
 					exit 0;
 				} else {
 					my $msg = "dsmc retrieve failure volume $tape file list $listfile: ";
@@ -261,7 +289,12 @@ while(1) {
 					printlog "STDERR: $err";
 					printlog "STDOUT: $out";
 
-                			# Any number of requests broke, try again later
+					# sleep to pace ourselves if these are
+					# persistent reoccurring failures
+					sleep $conf{sleeptime};
+
+					# Any number of requests broke, try
+					# again later
                 			exit 1;
 				}
 			}
