@@ -62,6 +62,12 @@ while(1) {
 	}
 
 	my $usage = getusage($dir);
+	if(!defined($usage)) {
+		# Retry if getusage() fails
+		sleep 1;
+		next;
+	}
+
 	my $usagestr = sprintf("%.03f GiB in %d files", $usage, $filecount);
 
 	if($usage < $conf{minusage}) {

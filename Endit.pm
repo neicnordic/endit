@@ -122,10 +122,9 @@ sub getusage($) {
 	} else {
 		# failed to run du, probably just a disappearing file.
 		printlog "failed to run du: $err\n";
-		# Return > maxusage to try again in a minute or two
-		return $conf{'maxusage'} + 1024;
+		return undef;
 	}
-	return $size/1024/1024;
+	return $size/1024/1024; # GiB
 }
 
 sub readtapelist($) {
