@@ -6,9 +6,6 @@
 dir: /grid/pool/
 logdir: /var/log/dcache/
 
-# Must match the one configured in the dCache pool
-hsminstance: hpc2n.umu.se
- 
 # Require this much stored before migrating to tape, in gigabytes
 minusage: 500
 # Or push to tape anyway after these many seconds

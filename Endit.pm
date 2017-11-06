@@ -88,7 +88,7 @@ sub readconf() {
 	}
 
 	# Verify that required parameters are defined
-	foreach my $param (qw{dir logdir hsminstance dsmcopts}) {
+	foreach my $param (qw{dir logdir dsmcopts}) {
 		if(!defined($conf{$param})) {
 			die "$conffile: $param is a required parameter, exiting";
 		}

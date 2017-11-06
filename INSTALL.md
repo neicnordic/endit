@@ -16,7 +16,7 @@ https://wiki.neic.no/wiki/DCache_TSM_interface
    "request", "requestlists".
 *  For the dCache pools, the "normal" size of almost the whole fs is appropriate.
    Define a dCache pool with this size on $fs/pool/.
-*  Adjust the paths and hsminstance etc in the congfig file to match the install.
+*  Adjust the paths etc in the config file to match the install.
 *  Start tsmarchiver.pl, tsmretriever.pl, and tsmdeleter.pl in the background.
 *  Install the dCache endit provider-
 *  Register the endit provider as an osm tape interface in dcache.
