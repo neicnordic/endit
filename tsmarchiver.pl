@@ -52,23 +52,18 @@ while(1) {
 	my $dir = $conf{'dir'} . '/out/';
 
         opendir(my $dh, $dir) || die "opendir $dir: $!";
-        my $filecount = scalar(grep { /^[0-9A-Fa-f]+$/ } readdir($dh));
+        my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($dh);
         closedir($dh);
 
-	if(!$filecount) {
+	if(!scalar(@files)) {
 		# No files, just sleep until next iteration.
 		sleep($conf{sleeptime});
 		next;
 	}
 
-	my $usage = getusage($dir);
-	if(!defined($usage)) {
-		# Retry if getusage() fails
-		sleep 1;
-		next;
-	}
+	my $usage = getusage($dir, @files);
 
-	my $usagestr = sprintf("%.03f GiB in %d files", $usage, $filecount);
+	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar(@files));
 
 	if($usage < $conf{minusage}) {
 		if(!defined($timer)) {

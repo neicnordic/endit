@@ -113,17 +113,20 @@ sub readconf() {
 }
 
 # Return filessystem usage (gigabytes)
-sub getusage($) {
+sub getusage($@) {
 	my $dir = shift;
-	my ($out,$err,$size);
-	my @cmd = ('du','-ks',$dir);
-	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) {
-		($size, undef) = split ' ',$out;
-	} else {
-		# failed to run du, probably just a disappearing file.
-		printlog "failed to run du: $err\n";
-		return undef;
+	my $size = 0;
+
+	printlog "Getting size of files in $dir: ". join(" ", @_) if($conf{debug});
+
+	while(my $file = shift) {
+		next unless(-e "$dir/$file");
+
+		$size += (stat _)[7];
 	}
+
+	printlog "Total size: $size bytes" if($conf{debug});
+
 	return $size/1024/1024; # GiB
 }
 
