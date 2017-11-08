@@ -20,12 +20,12 @@ archiver_timeout: 7200
 archiver_threshold1_usage: 400
 #archiver_threshold1_dsmcopts:
 
-# TODO:
-#archiver_threshold2_usage: 1000
+archiver_threshold2_usage: 1000
 # Resourceutilization 5 -> 2 producers (ie. write 2 tapes concurrently).
 # Note: Node must have MAXNUMMP increased from default 1
-#archiver_threshold2_dsmcopts: -resourceutilization=5
-# Also archiver_threshold3 ... archiver_threshold9
+archiver_threshold2_dsmcopts: -resourceutilization=5
+
+# Also archiver_threshold3 ... archiver_threshold9 available if needed
 
 # Maximum number of concurrent dsmc retrievers
 retriever_maxworkers: 3

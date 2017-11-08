@@ -65,7 +65,19 @@ while(1) {
 
 	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar(@files));
 
-	if($usage < $conf{archiver_threshold1_usage}) {
+	my $triggerthreshold;
+	# Assume threshold1_usage is smaller than threshold2_usage etc.
+	for my $i (9 .. 1) {
+		my $at = "archiver_threshold${i}";
+		next unless($conf{"${at}_usage"});
+
+		if($usage >= $conf{"${at}_usage"}) {
+			$triggerthreshold = $at;
+			printlog "$at triggers" if($conf{debug});
+			last;
+		}
+	}
+	if(!$triggerthreshold) {
 		if(!defined($timer)) {
 			$timer = 0;
 		}
@@ -82,6 +94,10 @@ while(1) {
 	printlog "Trying to archive files from $dir - $usagestr";
 
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	if($conf{"${triggerthreshold}_dsmcopts"}) {
+		printlog "Adding ${triggerthreshold}_dsmcopts " . $conf{"${triggerthreshold}_dsmcopts"} if($conf{debug});
+		push @dsmcopts, split(/, /, $conf{"${triggerthreshold}_dsmcopts"});
+	}
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
 		"-description=endit","$dir/*");
 	my ($out,$err);
