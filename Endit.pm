@@ -127,7 +127,7 @@ sub getusage($@) {
 
 	printlog "Total size: $size bytes" if($conf{debug});
 
-	return $size/1024/1024; # GiB
+	return $size/(1024*1024*1024); # GiB
 }
 
 sub readtapelist($) {
