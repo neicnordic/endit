@@ -44,7 +44,7 @@ sub printlog($) {
 	chomp($msg);
 	my $str = "$now [$$] $msg\n";
 
-	if($lf) {
+	if($lf && $lf->opened) {
 		print $lf $str;
 		if(!close($lf)) {
 			print $str;
