@@ -21,8 +21,11 @@ use strict;
 
 use IPC::Run3;
 use POSIX qw(strftime);
+use File::Basename;
 
-use lib '/opt/endit/';
+# Add directory of script to module search path
+use lib dirname (__FILE__);
+
 use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmarchiver.log';

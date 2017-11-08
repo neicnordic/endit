@@ -22,6 +22,10 @@ use warnings;
 use strict;
 
 use Getopt::Std;
+use File::Basename;
+
+# Add directory of script to module search path
+use lib dirname (__FILE__);
 use HPC2NTSMUtil;
 
 # Global variables
