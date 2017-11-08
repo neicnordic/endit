@@ -94,7 +94,11 @@ while(1) {
 	printlog "Trying to archive files from $dir - $usagestr";
 
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
-	if($conf{"${triggerthreshold}_dsmcopts"}) {
+	if(!$triggerthreshold) {
+		printlog "Adding archiver_timeout_dsmcopts " . $conf{archiver_timeout_dsmcopts} if($conf{debug});
+		push @dsmcopts, split(/, /, $conf{archiver_timeout_dsmcopts});
+	}
+	elsif($triggerthreshold && $conf{"${triggerthreshold}_dsmcopts"}) {
 		printlog "Adding ${triggerthreshold}_dsmcopts " . $conf{"${triggerthreshold}_dsmcopts"} if($conf{debug});
 		push @dsmcopts, split(/, /, $conf{"${triggerthreshold}_dsmcopts"});
 	}
