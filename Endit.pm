@@ -54,17 +54,24 @@ sub printlog($) {
 	}
 }
 
+my %confold2new = (
+	timeout => 'archiver_timeout',
+	minusage => 'archiver_threshold1_usage',
+	maxretrievers => 'retriever_maxworkers',
+	tapefile => 'retriever_hintfile',
+	remounttime => 'retriever_remountdelay',
+);
+
+
 sub readconf() {
 	my $conffile = '/opt/endit/endit.conf';
-	my $key;
-	my $val;
 
 	# Sensible defaults
 	$conf{sleeptime} = 60; # Seconds
-	$conf{minusage} = 500; # GB
-	$conf{timeout} = 7200; # Seconds
-	$conf{maxretrievers} = 1; # Number of processes
-	$conf{remounttime} = 600; # Seconds
+	$conf{archiver_timeout} = 7200; # Seconds
+	$conf{archiver_threshold1_usage} = 500; # GB
+	$conf{retriever_maxworkers} = 1; # Number of processes
+	$conf{retriever_remountdelay} = 600; # Seconds
 
 	if($ENV{ENDIT_CONFIG}) {
 		$conffile = $ENV{ENDIT_CONFIG};
@@ -79,11 +86,17 @@ sub readconf() {
 		next unless($_);
 		next if(/^\s+$/);
 
-		($key,$val) = split /:\s+/;
+		my($key,$val) = split /:\s+/;
 		if(!defined($key) || !defined($val) || $key =~ /^\s/ || $key =~ /\s$/) {
 			die "Aborting on garbage config line: '$_'";
 			next;
 		}
+
+		if($confold2new{$key}) {
+			warn "Config directive $key deprecated, please use $confold2new{$key} instead";
+			$key = $confold2new{$key};
+		}
+
 		$conf{$key} = $val;
 	}
 

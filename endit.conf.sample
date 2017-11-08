@@ -6,26 +6,36 @@
 dir: /grid/pool/
 logdir: /var/log/dcache/
 
-# Require this much stored before migrating to tape, in gigabytes
-minusage: 500
-# Or push to tape anyway after these many seconds
-timeout: 7200
+# base options to dsmc, ", "-delimited list.
+dsmcopts: -asnode=MIGRTEST, -errorlogname=/var/log/dcache/dsmerror.log
 
 # Sleep for this many seconds between each cycle, reasonable range 10-1000
 sleeptime: 60
 
-# options to dsmc, ", "-delimited list.
-dsmcopts: -asnode=MIGRTEST, -errorlogname=/var/log/dcache/dsmerror.log
+# Or push to tape anyway after these many seconds
+archiver_timeout: 7200
+#archiver_timeout_dsmcopts:
+
+# Require this much stored before migrating to tape, in gigabytes
+archiver_threshold1_usage: 400
+#archiver_threshold1_dsmcopts:
+
+# TODO:
+#archiver_threshold2_usage: 1000
+# Resourceutilization 5 -> 2 producers (ie. write 2 tapes concurrently).
+# Note: Node must have MAXNUMMP increased from default 1
+#archiver_threshold2_dsmcopts: -resourceutilization=5
+# Also archiver_threshold3 ... archiver_threshold9
 
 # Maximum number of concurrent dsmc retrievers
-maxretrievers: 4
+retriever_maxworkers: 3
 
 # Tape hints file for concurrent dsmc retrievers. Generate using
 # tsm_getvolumecontent.pl for the -asnode user you configured in dsmcopts.
-tapefile: /var/spool/endit/tapehints/MIGRTEST.txt
+retriever_hintfile: /var/spool/endit/tapehints/MIGRTEST.txt
 
 # When in concurrent mode, don't remount tapes more often than this, seconds
-remounttime: 600
+retriever_remountdelay: 600
 
 # Enable verbose logging
 # verbose: 1

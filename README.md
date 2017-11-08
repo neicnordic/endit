@@ -23,8 +23,9 @@ data in TSM. Different TSM nodes need to have different hsminstances.
 To get any efficiency in retrieves, you need to allow a large number of
 concurrent restores and have a long timeout for them.
 
-It is also recommended to tune "minusage" and "timeout" to your needs, this
-is the threshhold definitions for when to flush to tape.
+It is also recommended to tune "archiver_timeout" and
+"archiver_threshold*_usage" to your needs, these are the threshhold definitions
+for when to flush to tape.
 
 After installing, you need to create the directories "in", "out", "request",
 "requestlists" and "trash" in the same filesystem as the pool.

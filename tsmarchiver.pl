@@ -65,11 +65,11 @@ while(1) {
 
 	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar(@files));
 
-	if($usage < $conf{minusage}) {
+	if($usage < $conf{archiver_threshold1_usage}) {
 		if(!defined($timer)) {
 			$timer = 0;
 		}
-		if($timer < $conf{timeout}) {
+		if($timer < $conf{archiver_timeout}) {
 			printlog "Only $usagestr, sleeping a while (slept $timer s)" if($conf{verbose});
 			sleep $conf{sleeptime};
 			$timer += $conf{sleeptime};

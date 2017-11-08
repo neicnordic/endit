@@ -98,8 +98,8 @@ printlog("$0: Starting...");
 # Warning: Infinite loop. Program may not stop.
 while(1) {
 #	load/refresh tape list
-	if (exists $conf{tapefile}) {
-		my $tapefilename = $conf{tapefile};
+	if (exists $conf{retriever_hintfile}) {
+		my $tapefilename = $conf{retriever_hintfile};
 		my $newtapemodtime = (stat $tapefilename)[9];
 		if(defined $newtapemodtime) {
 			if ($newtapemodtime > $tapelistmodtime) {
@@ -109,14 +109,14 @@ while(1) {
 					if(scalar(keys(%{$tapelist}))) {
 						$loadtype = "reloaded";
 					}
-					printlog "Tape list $tapefilename ${loadtype}, " . scalar(keys(%{$newtapelist})) . " entries.";
+					printlog "Tape hint file $tapefilename ${loadtype}, " . scalar(keys(%{$newtapelist})) . " entries.";
 
 					$tapelist = $newtapelist;
 					$tapelistmodtime = $newtapemodtime;
 				}
 			} 
 		} else {
-			printlog "Warning: tapefile set to $conf{tapefile}, but this file does not seem to exist";
+			printlog "Warning: retriever_hintfile set to $conf{retriever_hintfile}, but this file does not seem to exist";
 		}
 	}
 
@@ -124,7 +124,7 @@ while(1) {
 	if(@workers) {
 		my $timer = 0;
 		my $atmax = 0;
-		$atmax = 1 if(scalar(@workers) >= $conf{'maxretrievers'});
+		$atmax = 1 if(scalar(@workers) >= $conf{'retriever_maxworkers'});
 
 		while($timer < $conf{sleeptime}) {
 			@workers = map {
@@ -146,7 +146,7 @@ while(1) {
 
 			# Break early if we were waiting for a worker
 			# to be freed up.
-			if($atmax && scalar(@workers) < $conf{'maxretrievers'})
+			if($atmax && scalar(@workers) < $conf{'retriever_maxworkers'})
 			{
 				last;
 			}
@@ -194,7 +194,7 @@ while(1) {
 	}
 
 #	if any requests and free worker
-	if (%reqset && scalar(@workers) < $conf{'maxretrievers'}) {
+	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {
 #		make list blacklisting pending tapes
 		my %usedtapes;
 		my $job = {};
@@ -220,13 +220,13 @@ while(1) {
 			}
 		}
 
-#		start jobs on tapes not already taken up until maxretrievers
+#		start jobs on tapes not already taken up until retriever_maxworkers
 		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
-			last if(scalar(@workers) >= $conf{'maxretrievers'});
+			last if(scalar(@workers) >= $conf{'retriever_maxworkers'});
 
 			printlog "Oldest job on volume $tape: " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{timestamp})) if($conf{verbose});
 			next if exists $usedtapes{$tape};
-			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{remounttime};
+			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay};
 			my $lfentries = 0;
 			my $listfile = "$dir/requestlists/$tape";
 			open my $lf, ">", $listfile or die "Can't open $listfile: $!";
