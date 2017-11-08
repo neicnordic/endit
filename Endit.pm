@@ -62,6 +62,12 @@ my %confold2new = (
 	remounttime => 'retriever_remountdelay',
 );
 
+my %confobsolete = (
+	hsminstance => 1,
+	remotedirs => 1,
+	pollinginterval => 1,
+	maxusage => 1,
+);
 
 sub readconf() {
 	my $conffile = '/opt/endit/endit.conf';
@@ -95,6 +101,11 @@ sub readconf() {
 		if($confold2new{$key}) {
 			warn "Config directive $key deprecated, please use $confold2new{$key} instead";
 			$key = $confold2new{$key};
+		}
+
+		if($confobsolete{$key}) {
+			warn "Config directive $key OBSOLETE, skipping";
+			next;
 		}
 
 		$conf{$key} = $val;
