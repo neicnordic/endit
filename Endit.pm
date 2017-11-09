@@ -19,6 +19,7 @@ use strict;
 use warnings;
 use IPC::Run3;
 use POSIX qw(strftime);
+use File::Temp qw /tempfile/;
 
 our (@ISA, @EXPORT_OK);
 BEGIN {
@@ -69,15 +70,140 @@ my %confobsolete = (
 	maxusage => 1,
 );
 
+my %confitems = (
+	dir => {
+		example => '/grid/pool',
+		desc => 'Base directory',
+	},
+	logdir => {
+		example => '/var/log/dcache',
+		desc => 'Log directory',
+	},
+	dsmcopts => {
+		example => '-asnode=EXAMPLENODE, -errorlogname=/var/log/dcache/dsmerror.log',
+		desc => 'Base options to dsmc, ", "-delimited list',
+	},
+	sleeptime => {
+		default => 60,
+		desc => 'Sleep for this many seconds between each cycle',
+	},
+	archiver_timeout => {
+		default => 7200,
+		desc => 'Push to tape anyway after these many seconds',
+	},
+	archiver_timeout_dsmcopts => {
+		desc => 'Extra dsmcopts for archiver_timeout',
+	},
+	archiver_threshold1_usage => {
+		default => 500,
+		desc => 'Require this usage before migrating to tape, in gigabytes',
+	},
+	archiver_threshold1_dsmcopts => {
+		desc => 'Extra dsmcopts for archiver_threshold1',
+	},
+	archiver_threshold2_usage => {
+		example => 1000,
+		desc => "When exceeding this usage, in gigabytes, apply additonal dsmcopts",
+	},
+	archiver_threshold2_dsmcopts => {
+		example => "-resourceutilization=5",
+		desc => "Resourceutilization 5 -> 2 producers (ie. write 2 tapes concurrently).\nNote: Node must have MAXNUMMP increased from default 1",
+	},
+	archiver_threshold3_usage => {},
+	archiver_threshold3_dsmcopts => {},
+	archiver_threshold4_usage => {},
+	archiver_threshold4_dsmcopts => {},
+	archiver_threshold5_usage => {},
+	archiver_threshold5_dsmcopts => {},
+	archiver_threshold6_usage => {},
+	archiver_threshold6_dsmcopts => {},
+	archiver_threshold7_usage => {},
+	archiver_threshold7_dsmcopts => {},
+	archiver_threshold8_usage => {},
+	archiver_threshold8_dsmcopts => {},
+	archiver_threshold9_usage => {},
+	archiver_threshold9_dsmcopts => {},
+	retriever_maxworkers => {
+		default => 1,
+		example => 3,
+		desc => 'Maximum number of concurrent dsmc retrievers',
+	},
+	retriever_remountdelay => {
+		default => 600,
+		desc => "When in concurrent mode, don't remount tapes more often than this, seconds",
+	},
+	retriever_hintfile => {
+		example => "/var/spool/endit/tapehints/EXAMPLENODE.txt",
+		desc => "Tape hints file for concurrent dsmc retrievers. Generate using\ntsm_getvolumecontent.pl for the -asnode user you configured in dsmcopts",
+	},
+
+	verbose => {
+		default => 0,
+		desc => 'Enable verbose logging (1/true to enable)',
+	},
+	debug => {
+		default => 0,
+		desc => 'Enable debug logging (1/true to enable)',
+	},
+);
+
+# Sort function that orders component specific configuration directives
+# after common ones.
+sub confdirsort {
+	return 1 if($a=~/_/ && $b!~/_/);
+	return -1 if($b=~/_/ && $a!~/_/);
+
+	return $a cmp $b;
+}
+
+sub writesampleconf() {
+
+	my($fh, $fn) = tempfile("endit.conf.sample.XXXXXX", UNLINK=>0, TMPDIR=>1);
+
+	print $fh "# Endit sample configuration file.\n";
+	print $fh "# Generated on " . scalar(localtime(time())) . "\n";
+	print $fh "\n";
+	print $fh "# Note, comments have to start with # in the first character of the line\n";
+	print $fh "# Otherwise, simple \"key: value\" pairs\n";
+
+	foreach my $k (sort confdirsort keys %confitems) {
+		next unless($confitems{$k}{desc});
+
+		print $fh "\n";
+		my @desc = split(/\n/, $confitems{$k}{desc});
+		print $fh "# ", join("\n# ", @desc), "\n";
+		if(defined($confitems{$k}{default})) {
+			print $fh "# (default $confitems{$k}{default})\n";
+		}
+
+		if(defined($confitems{$k}{example}) && defined($confitems{$k}{default})) {
+			print $fh "# $k: $confitems{$k}{example}\n";
+		}
+		elsif(defined($confitems{$k}{example})) {
+			print $fh "$k: $confitems{$k}{example}\n";
+		}
+		elsif(defined($confitems{$k}{default})) {
+			print $fh "# $k: $confitems{$k}{default}\n";
+		}
+		else {
+			print $fh "# $k:\n";
+		}
+	}
+
+	close($fh) || warn "Closing $fn: $!";
+
+	printlog "Sample configuration file written to $fn";
+}
+
 sub readconf() {
 	my $conffile = '/opt/endit/endit.conf';
 
-	# Sensible defaults
-	$conf{sleeptime} = 60; # Seconds
-	$conf{archiver_timeout} = 7200; # Seconds
-	$conf{archiver_threshold1_usage} = 500; # GB
-	$conf{retriever_maxworkers} = 1; # Number of processes
-	$conf{retriever_remountdelay} = 600; # Seconds
+	# Apply defaults
+	foreach my $k (keys %confitems) {
+		next unless(defined($confitems{$k}{default}));
+
+		$conf{$k} = $confitems{$k}{default};
+	}
 
 	if($ENV{ENDIT_CONFIG}) {
 		$conffile = $ENV{ENDIT_CONFIG};
@@ -85,7 +211,12 @@ sub readconf() {
 
 	printlog "Using configuration file $conffile";
 
-	open my $cf, '<', $conffile or die "Can't open $conffile: $!";
+	my $cf;
+	if(!open $cf, '<', $conffile) {
+		warn "Can't open $conffile: $!";
+		writesampleconf();
+		die "No configuration, exiting...";
+	}
 	while(<$cf>) {
 		next if $_ =~ /^#/;
 		chomp;
@@ -108,6 +239,11 @@ sub readconf() {
 			next;
 		}
 
+		if(!$confitems{$key}) {
+			warn "Config directive $key UNKNOWN, skipping";
+			next;
+		}
+
 		$conf{$key} = $val;
 	}
 
@@ -123,16 +259,10 @@ sub readconf() {
 		if(! -d "$conf{dir}/$subdir") {
 			die "Required directory $conf{dir}/$subdir missing, exiting";
 		}
-		my $tmpf = "$conf{dir}/$subdir/.endit.$$";
-		if(open(my $fh, '>', $tmpf)) {
-			close($fh);
-			unlink($tmpf);
-		}
-		else {
-			my $err = $!;
-			unlink($tmpf); # Just in case
-			die "Can't write to directory $conf{dir}/$subdir: $err, exiting";
-		}
+		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$conf{dir}/$subdir"); # croak():s on error
+
+		close($fh);
+		unlink($fn);
 	}
 }
 
