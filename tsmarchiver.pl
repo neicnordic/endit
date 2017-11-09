@@ -107,6 +107,7 @@ while(1) {
 	}
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
 		"-description=endit","$dir/*");
+	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		printlog "Successfully archived files from $dir";

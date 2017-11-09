@@ -268,6 +268,8 @@ while(1) {
 				my $indir = $dir . '/in/';
 				my @dsmcopts = split /, /, $conf{'dsmcopts'};
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
+				printlog "Executing: " . join(" ", @cmd) if($conf{debug});
+
 				my ($in,$out,$err);
 				$in="A\n";
 				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {

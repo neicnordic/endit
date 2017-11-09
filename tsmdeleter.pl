@@ -99,6 +99,7 @@ sub rundelete {
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
 	my @cmd = ('dsmc','delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
+        printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		# files removed from tape without issue
 	} else {
