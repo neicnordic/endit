@@ -70,7 +70,7 @@ while(1) {
 
 	my $triggerthreshold;
 	# Assume threshold1_usage is smaller than threshold2_usage etc.
-	for my $i (9 .. 1) {
+	for my $i (reverse(1 .. 9)) {
 		my $at = "archiver_threshold${i}";
 		next unless($conf{"${at}_usage"});
 
