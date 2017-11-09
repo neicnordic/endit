@@ -144,11 +144,6 @@ sub monthsago {
 
 printlog("$0: Starting...");
 
-# Check writability of needed dirs
-my ($chkfh, $chkfn) = tempfile($filelist, DIR=>$conf{'dir'});
-close($chkfh) || die "Failed closing $chkfn: $!";
-unlink($chkfn);
-
 while(1) {
 	opendir(my $td, $trashdir) || die "opendir $trashdir: $!";
 	my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($td);

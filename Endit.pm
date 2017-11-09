@@ -254,12 +254,21 @@ sub readconf() {
 		}
 	}
 
+	# Verify that dir is present and writable
+	if(! -d "$conf{dir}") {
+		die "Required directory $conf{dir} missing, exiting";
+	}
+	my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$conf{dir}"); # croak():s on error
+
+	close($fh);
+	unlink($fn);
+
 	# Verify that required subdirs are present and writable
 	foreach my $subdir (qw{in out request requestlists trash}) {
 		if(! -d "$conf{dir}/$subdir") {
 			die "Required directory $conf{dir}/$subdir missing, exiting";
 		}
-		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$conf{dir}/$subdir"); # croak():s on error
+		($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$conf{dir}/$subdir"); # croak():s on error
 
 		close($fh);
 		unlink($fn);
