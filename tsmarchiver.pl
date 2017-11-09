@@ -21,6 +21,7 @@ use strict;
 
 use IPC::Run3;
 use POSIX qw(strftime);
+use File::Temp qw /tempfile/;
 use File::Basename;
 
 # Add directory of script to module search path
@@ -31,6 +32,8 @@ use Endit qw(%conf readconf printlog getusage);
 $Endit::logsuffix = 'tsmarchiver.log';
 
 readconf();
+
+my $filelist = "tsm-archive-files.XXXXXX";
 
 # Try to send warn/die messages to log file
 INIT {
@@ -96,6 +99,12 @@ while(1) {
 
 	printlog "Trying to archive files from $dir - $usagestr";
 
+	my $dounlink = 1;
+	$dounlink=0 if($conf{debug});
+	my ($fh, $fn) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
+	print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
+	close($fh) || die "Failed writing to $fn: $!";
+
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
 	if(!$triggerthreshold && $conf{archiver_timeout_dsmcopts}) {
 		printlog "Adding archiver_timeout_dsmcopts " . $conf{archiver_timeout_dsmcopts} if($conf{debug});
@@ -106,11 +115,11 @@ while(1) {
 		push @dsmcopts, split(/, /, $conf{"${triggerthreshold}_dsmcopts"});
 	}
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
-		"-description=endit","$dir/*");
+		"-description=endit","-filelist=$fn");
 	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		printlog "Successfully archived files from $dir";
+		printlog "Archive operation successful.";
 		printlog $out if $conf{'verbose'};
 		# files migrated to tape without issue
 	} else {
@@ -133,4 +142,5 @@ while(1) {
 		# Avoid spinning on persistent errors.
 		sleep $conf{sleeptime};
 	}
+	unlink($fn) unless($conf{debug});
 }
