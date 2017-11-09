@@ -32,7 +32,7 @@ $Endit::logsuffix = 'tsmdeleter.log';
 
 readconf();
 
-my $filelist = "tsm-delete-files.XXXXX";
+my $filelist = "tsm-delete-files.XXXXXX";
 my $trashdir = "$conf{'dir'}/trash";
 
 # Try to send warn/die messages to log file
