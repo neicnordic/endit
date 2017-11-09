@@ -140,7 +140,7 @@ while(1) {
 					# results. We'll retry and if stuff is
 					# really broken, the admins will notice
 					# from hanging restore requests anyway.
-					unlink $w->{listfile};
+					unlink $w->{listfile} unless($conf{debug});
 				} 
 				$w;
 			} @workers;

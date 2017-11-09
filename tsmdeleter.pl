@@ -34,6 +34,9 @@ readconf();
 
 my $filelist = "tsm-delete-files.XXXXXX";
 my $trashdir = "$conf{'dir'}/trash";
+my $dounlink = 1;
+$dounlink=0 if($conf{debug});
+
 
 # Try to send warn/die messages to log file
 INIT {
@@ -151,19 +154,18 @@ while(1) {
 	closedir($td);
 
 	if (@files > 0) {
-		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>0);
+		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
 		printlog "Trying to delete " . scalar(@files) . " files from file list $filename";
 		if(rundelete($filename)) {
 			# Have already warned in rundelete()
-			# Explicitly not unlink():ing failed filelist
 		} else {
 			# Success
 			printlog "Successfully deleted " . scalar(@files) . " files from file list $filename";
-			unlink($filename);
 			havedeleted(@files);
 		}
+		unlink($filename) unless($conf{debug});
 	}
 	my $thismonth = strftime '%Y-%m', localtime;
 
@@ -181,19 +183,18 @@ while(1) {
 			@files = grep { /^[0-9A-Fa-f]+$/ } readdir($odh);
 			closedir($odh);
 			if (@files > 0) {
-				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>0);
+				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
 				print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 				close($fh) || die "Failed writing to $filename: $!";
 				printlog "Retrying month $month deletion of " . scalar(@files) . " files from file list $filename";
 				if(rundelete($filename)) {
 					# Have already warned in rundelete()
-					# Explicitly not unlink():ing failed filelist
 				} else {
 					# Success
 					printlog "Successfully reprocessed month $month deletion of " . scalar(@files) . " files from file list $filename";
-					unlink($filename);
 					monthdeleted($month, @files);
 				}
+				unlink($filename) unless($conf{debug});
 			}
 		}
 	}
