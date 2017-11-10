@@ -117,9 +117,13 @@ while(1) {
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
 		"-description=endit","-filelist=$fn");
 	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
+	my $execstart = time();
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		printlog "Archive operation successful.";
+		my $duration = time()-$execstart;
+		$duration = 1 unless($duration);
+		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(@files)/$duration);
+		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
 		printlog $out if $conf{'verbose'};
 		# files migrated to tape without issue
 	} else {
