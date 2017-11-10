@@ -22,6 +22,7 @@ use strict;
 use IPC::Run3;
 use POSIX qw(strftime WNOHANG);
 use JSON;
+use File::Temp qw /tempfile/;
 use File::Basename;
 
 # Add directory of script to module search path
@@ -32,7 +33,6 @@ $Endit::logsuffix = 'tsmretriever.log';
 
 readconf();
 
-my $dir = $conf{'dir'};
 my $listfilecounter = 0;
 
 # Try to send warn/die messages to log file
@@ -170,7 +170,7 @@ while(1) {
 #	read current requests
 	{
 		%reqset=();
-		my $reqdir = "$dir/request/";
+		my $reqdir = "$conf{dir}/request/";
 		opendir(my $rd, $reqdir) || die "opendir $reqdir: $!";
 		my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
 		closedir($rd);
@@ -178,7 +178,7 @@ while(1) {
 			foreach my $req (@requests) {
 #				It'd be nice to do this here, but takes way too long with a large request list. Instead we only check it when making the requestlist per tape.
 #				my $reqinfo = checkrequest($req);
-				my $reqfilename=$dir . '/request/' . $req;
+				my $reqfilename=$conf{dir} . '/request/' . $req;
 				my $ts =(stat $reqfilename)[9];
 				my $reqinfo = {timestamp => $ts } if defined $ts;
 				if ($reqinfo) {
@@ -229,12 +229,13 @@ while(1) {
 			printlog "Oldest job on volume $tape: " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{timestamp})) if($conf{verbose});
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay};
+
+			my ($lf, $listfile) = tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0);
+
 			my $lfentries = 0;
-			my $listfile = "$dir/requestlists/$tape";
-			open my $lf, ">", $listfile or die "Can't open $listfile: $!";
 			foreach my $name (keys %{$job->{$tape}}) {
 				next unless checkrequest($name);
-				print $lf "$dir/out/$name\n";
+				print $lf "$conf{dir}/out/$name\n";
 				$lfentries ++;
 			}
 			close $lf or die "Closing $listfile failed: $!";
@@ -265,7 +266,7 @@ while(1) {
 
 				printlog "Trying to retrieve files from volume $tape using file list $listfile" if($conf{verbose});
 
-				my $indir = $dir . '/in/';
+				my $indir = $conf{dir} . '/in/';
 				my @dsmcopts = split /, /, $conf{'dsmcopts'};
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
 				printlog "Executing: " . join(" ", @cmd) if($conf{debug});
