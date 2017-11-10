@@ -20,6 +20,7 @@ use warnings;
 use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
+use File::Basename;
 
 our (@ISA, @EXPORT_OK);
 BEGIN {
@@ -197,7 +198,7 @@ sub writesampleconf() {
 }
 
 sub readconf() {
-	my $conffile = '/opt/endit/endit.conf';
+	my $conffile = dirname (__FILE__) .  '/endit.conf';
 
 	# Apply defaults
 	foreach my $k (keys %confitems) {
