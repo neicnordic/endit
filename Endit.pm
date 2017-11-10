@@ -88,28 +88,32 @@ my %confitems = (
 		desc => 'Sleep for this many seconds between each cycle',
 	},
 	archiver_timeout => {
-		default => 7200,
-		desc => 'Push to tape anyway after these many seconds',
+		default => 21600,
+		example => 21600,
+		desc => "Push to tape anyway after these many seconds.\nThis should be significantly shorter than the store timeout, commonly 1 day.",
 	},
 	archiver_timeout_dsmcopts => {
 		desc => 'Extra dsmcopts for archiver_timeout',
 	},
 	archiver_threshold1_usage => {
 		default => 500,
-		desc => 'Require this usage before migrating to tape, in gigabytes',
+		example => 500,
+		desc => "Require this usage before migrating to tape, in gigabytes.\nTune this to be 20-30 minutes or more of tape activity.",
 	},
 	archiver_threshold1_dsmcopts => {
 		desc => 'Extra dsmcopts for archiver_threshold1',
 	},
 	archiver_threshold2_usage => {
-		example => 1000,
-		desc => "When exceeding this usage, in gigabytes, apply additonal dsmcopts",
+		example => 2000,
+		desc => "When exceeding this usage, in gigabytes, apply additonal dsmcopts.\nCommonly used to trigger usage of multiple tape sessions if one\nsession can't keep up. Recommended setting is somewhere between\ntwice the archiver_threshold1_usage and 20% of the total pool size.",
 	},
 	archiver_threshold2_dsmcopts => {
 		example => "-resourceutilization=5",
-		desc => "Resourceutilization 5 -> 2 producers (ie. write 2 tapes concurrently).\nNote: Node must have MAXNUMMP increased from default 1",
+		desc => "Resourceutilization 5 -> 2 producers (ie. write 2 tapes concurrently).\nNote: Node must have MAXNUMMP increased from default 1.",
 	},
-	archiver_threshold3_usage => {},
+	archiver_threshold3_usage => {
+		desc => "Also archiver_threshold3 ... archiver_threshold9 available if needed.",
+	},
 	archiver_threshold3_dsmcopts => {},
 	archiver_threshold4_usage => {},
 	archiver_threshold4_dsmcopts => {},
@@ -126,7 +130,7 @@ my %confitems = (
 	retriever_maxworkers => {
 		default => 1,
 		example => 3,
-		desc => 'Maximum number of concurrent dsmc retrievers',
+		desc => "Maximum number of concurrent dsmc retrievers.\nNote: Node must have MAXNUMMP increased from default 1.",
 	},
 	retriever_remountdelay => {
 		default => 600,
@@ -143,7 +147,7 @@ my %confitems = (
 	},
 	debug => {
 		default => 0,
-		desc => 'Enable debug logging (1/true to enable)',
+		desc => 'Enable debug mode/logging (1/true to enable)',
 	},
 );
 
@@ -176,10 +180,7 @@ sub writesampleconf() {
 			print $fh "# (default $confitems{$k}{default})\n";
 		}
 
-		if(defined($confitems{$k}{example}) && defined($confitems{$k}{default})) {
-			print $fh "# $k: $confitems{$k}{example}\n";
-		}
-		elsif(defined($confitems{$k}{example})) {
+		if(defined($confitems{$k}{example})) {
 			print $fh "$k: $confitems{$k}{example}\n";
 		}
 		elsif(defined($confitems{$k}{default})) {
