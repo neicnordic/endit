@@ -54,30 +54,32 @@ $SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
 sub checkrequest($) {
 	my $req = shift;
 	my $req_filename = $conf{'dir'} . '/request/' . $req;
-	my $parent_pid;
+	my $state;
+
 	{
 		local $/; # slurp whole file
-#		If open failed, probably the request was finished or cancelled
+		# If open failed, probably the request was finished or cancelled
 		open my $rf, '<', $req_filename or return undef;
 		my $json_text = <$rf>;
-		my $state = decode_json($json_text);
-		if (defined $state && exists $state->{parent_pid}) {
-			$parent_pid = $state->{parent_pid};
-		}
-		my $in_filename = $conf{'dir'} . '/in/' . $req;
-		my $in_filesize=(stat $in_filename)[7];
-		if(defined $in_filesize && $in_filesize == $state->{file_size}) {
-			printlog "Not doing $req due to file of correct size already present" if $conf{'verbose'};
-			return undef;
-		}
+		$state = decode_json($json_text);
+		close $rf;
 	}
-	if($parent_pid && getpgrp($parent_pid) > 0) {
-		return { parent_pid => $parent_pid };
-	} else {
+
+	if(!$state || $state->{parent_pid} && getpgrp($state->{parent_pid})<=0)
+	{
 		printlog "Broken request file $req_filename, removing";
 		unlink $req_filename;
 		return undef;
 	}
+
+	my $in_filename = $conf{'dir'} . '/in/' . $req;
+	my $in_filesize=(stat $in_filename)[7];
+	if(defined($in_filesize) && defined($state->{file_size}) && $in_filesize == $state->{file_size}) {
+		printlog "Not doing $req due to file of correct size already present" if $conf{'verbose'};
+		return undef;
+	}
+
+	return $state;
 }
 
 sub processing_file($$) {
@@ -233,10 +235,16 @@ while(1) {
 			my ($lf, $listfile) = tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0);
 
 			my $lfentries = 0;
+			my $lfsize = 0;
 			foreach my $name (keys %{$job->{$tape}}) {
-				next unless checkrequest($name);
+				my $reqinfo = checkrequest($name);
+				next unless($reqinfo);
+
 				print $lf "$conf{dir}/out/$name\n";
 				$lfentries ++;
+				if($reqinfo->{file_size}) {
+					$lfsize += $reqinfo->{file_size};
+				}
 			}
 			close $lf or die "Closing $listfile failed: $!";
 
@@ -245,7 +253,9 @@ while(1) {
 				next;
 			}
 			$lastmount{$tape} = time;
-			printlog "Running worker on volume $tape ($lfentries entries)";
+
+			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
+			printlog "Running worker on volume $tape ($lfstats)";
 
 #			spawn worker
 			my $pid;
