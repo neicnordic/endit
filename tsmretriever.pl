@@ -280,12 +280,15 @@ while(1) {
 				my @dsmcopts = split /, /, $conf{'dsmcopts'};
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
 				printlog "Executing: " . join(" ", @cmd) if($conf{debug});
-
+				my $execstart = time();
 				my ($in,$out,$err);
 				$in="A\n";
 				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
-					# files migrated from tape without issue
-					printlog "Successfully retrieved files from volume $tape";
+					my $duration = time()-$execstart;
+					$duration = 1 unless($duration);
+					my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), $lfentries/$duration);
+					printlog "Retrieve operation from volume $tape successful, duration $duration seconds, average rate $stats";
+
 					# sleep to let requester remove requests
 					sleep 3;
 					exit 0;
