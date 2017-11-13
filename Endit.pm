@@ -165,7 +165,7 @@ sub writesampleconf() {
 
 	my($fh, $fn) = tempfile("endit.conf.sample.XXXXXX", UNLINK=>0, TMPDIR=>1);
 
-	print $fh "# Endit sample configuration file.\n";
+	print $fh "# ENDIT daemons sample configuration file.\n";
 	print $fh "# Generated on " . scalar(localtime(time())) . "\n";
 	print $fh "\n";
 	print $fh "# Note, comments have to start with # in the first character of the line\n";
