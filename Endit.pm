@@ -164,6 +164,9 @@ sub confdirsort {
 sub writesampleconf() {
 
 	my($fh, $fn) = tempfile("endit.conf.sample.XXXXXX", UNLINK=>0, TMPDIR=>1);
+	# tempfile() creates a file with private permissions, but we have no
+	# secrets in the sample file!
+	chmod(0644, $fn);
 
 	print $fh "# ENDIT daemons sample configuration file.\n";
 	print $fh "# Generated on " . scalar(localtime(time())) . "\n";
