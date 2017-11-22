@@ -1,11 +1,12 @@
 [Unit]
 Description=ENDIT deleter process
-Documentation=https://github.com/maswan/endit
+Documentation=https://github.com/neicnordic/endit
 Requisite=dcache.service
 After=dcache.service
 
 [Service]
 Type=simple
+#Environment="ENDIT_CONFIG=/path/to/endit.conf"
 ExecStart=/opt/endit/tsmdeleter.pl
 #Restart=on-failure
 User=dcache

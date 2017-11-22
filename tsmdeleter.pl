@@ -22,17 +22,21 @@ use strict;
 use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
+use File::Basename;
 
-
-use lib '/opt/endit/';
+# Add directory of script to module search path
+use lib dirname (__FILE__);
 use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmdeleter.log';
 
 readconf();
 
-my $filelist = "tsm-delete-files.XXXXX";
+my $filelist = "tsm-delete-files.XXXXXX";
 my $trashdir = "$conf{'dir'}/trash";
+my $dounlink = 1;
+$dounlink=0 if($conf{debug});
+
 
 # Try to send warn/die messages to log file
 INIT {
@@ -98,6 +102,7 @@ sub rundelete {
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
 	my @cmd = ('dsmc','delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
+        printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
 		# files removed from tape without issue
 	} else {
@@ -143,18 +148,13 @@ sub monthsago {
 
 printlog("$0: Starting...");
 
-# Check writability of needed dirs
-my ($chkfh, $chkfn) = tempfile($filelist, DIR=>$conf{'dir'});
-close($chkfh) || die "Failed closing $chkfn: $!";
-unlink($chkfn);
-
 while(1) {
-	my @files = ();
-	opendir(TD, $trashdir);
-	@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
-	close(TD);
+	opendir(my $td, $trashdir) || die "opendir $trashdir: $!";
+	my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($td);
+	closedir($td);
+
 	if (@files > 0) {
-		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
+		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
 		printlog "Trying to delete " . scalar(@files) . " files from file list $filename";
@@ -163,22 +163,27 @@ while(1) {
 		} else {
 			# Success
 			printlog "Successfully deleted " . scalar(@files) . " files from file list $filename";
-			unlink($filename);
 			havedeleted(@files);
 		}
+		unlink($filename) unless($conf{debug});
 	}
 	my $thismonth = strftime '%Y-%m', localtime;
-	my @olddirs = ();
-	opendir(TD, $trashdir);
-	@olddirs = grep { /^[0-9]{4}-[0-9]{2}/ } readdir(TD);
-	close(TD);
+
+	opendir(my $tm, $trashdir) || die "opendir $trashdir: $!";
+	my @olddirs = grep { /^[0-9]{4}-[0-9]{2}/ } readdir($tm);
+	closedir($tm);
 	foreach my $month (@olddirs) {
 		if(monthsago($thismonth,$month)>1) {
-			opendir(TD,$trashdir . '/' . $month);
-			@files = grep { /^[0-9A-Fa-f]+$/ } readdir(TD);
-			closedir(TD);
+			my $odh;
+			my $od = $trashdir . '/' . $month;
+			unless(opendir($odh, $od)) {
+				warn "opendir $od: $!";
+				next;
+			}
+			@files = grep { /^[0-9A-Fa-f]+$/ } readdir($odh);
+			closedir($odh);
 			if (@files > 0) {
-				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'});
+				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
 				print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 				close($fh) || die "Failed writing to $filename: $!";
 				printlog "Retrying month $month deletion of " . scalar(@files) . " files from file list $filename";
@@ -187,12 +192,12 @@ while(1) {
 				} else {
 					# Success
 					printlog "Successfully reprocessed month $month deletion of " . scalar(@files) . " files from file list $filename";
-					unlink($filename);
 					monthdeleted($month, @files);
 				}
+				unlink($filename) unless($conf{debug});
 			}
 		}
 	}
 
-	sleep 1800;
+	sleep $conf{sleeptime};
 }

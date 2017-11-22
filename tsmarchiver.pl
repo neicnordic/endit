@@ -21,13 +21,19 @@ use strict;
 
 use IPC::Run3;
 use POSIX qw(strftime);
+use File::Temp qw /tempfile/;
+use File::Basename;
 
-use lib '/opt/endit/';
+# Add directory of script to module search path
+use lib dirname (__FILE__);
+
 use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmarchiver.log';
 
 readconf();
+
+my $filelist = "tsm-archive-files.XXXXXX";
 
 # Try to send warn/die messages to log file
 INIT {
@@ -47,25 +53,77 @@ $SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
 
 printlog("$0: Starting...");
 
+my $timer;
 while(1) {
 	my $dir = $conf{'dir'} . '/out/';
-	my $usage = getusage($dir);
-	my $timer = 0;
-	while ($usage<$conf{'minusage'} && $timer <$conf{'timeout'}) {
-		# print "Only $usage used, sleeping a while (slept $timer)\n";
-		sleep 60;
-		$timer+=60;
-		$usage = getusage($dir);
+
+        opendir(my $dh, $dir) || die "opendir $dir: $!";
+        my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($dh);
+        closedir($dh);
+
+	if(!scalar(@files)) {
+		# No files, just sleep until next iteration.
+		sleep($conf{sleeptime});
+		next;
 	}
 
-	printlog "Trying to archive files from $dir - $usage GiB used.";
+	my $usage = getusage($dir, @files);
+
+	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar(@files));
+
+	my $triggerthreshold;
+	# Assume threshold1_usage is smaller than threshold2_usage etc.
+	for my $i (reverse(1 .. 9)) {
+		my $at = "archiver_threshold${i}";
+		next unless($conf{"${at}_usage"});
+
+		if($usage >= $conf{"${at}_usage"}) {
+			$triggerthreshold = $at;
+			printlog "$at triggers" if($conf{debug});
+			last;
+		}
+	}
+	if(!$triggerthreshold) {
+		if(!defined($timer)) {
+			$timer = 0;
+		}
+		if($timer < $conf{archiver_timeout}) {
+			printlog "Only $usagestr, sleeping a while (slept $timer s)" if($conf{verbose});
+			sleep $conf{sleeptime};
+			$timer += $conf{sleeptime};
+			next;
+		}
+	}
+
+	$timer = undef;
+
+	printlog "Trying to archive files from $dir - $usagestr";
+
+	my $dounlink = 1;
+	$dounlink=0 if($conf{debug});
+	my ($fh, $fn) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
+	print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
+	close($fh) || die "Failed writing to $fn: $!";
 
 	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	if(!$triggerthreshold && $conf{archiver_timeout_dsmcopts}) {
+		printlog "Adding archiver_timeout_dsmcopts " . $conf{archiver_timeout_dsmcopts} if($conf{debug});
+		push @dsmcopts, split(/, /, $conf{archiver_timeout_dsmcopts});
+	}
+	if($triggerthreshold && $conf{"${triggerthreshold}_dsmcopts"}) {
+		printlog "Adding ${triggerthreshold}_dsmcopts " . $conf{"${triggerthreshold}_dsmcopts"} if($conf{debug});
+		push @dsmcopts, split(/, /, $conf{"${triggerthreshold}_dsmcopts"});
+	}
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
-		"-description=endit","$dir/*");
+		"-description=endit","-filelist=$fn");
+	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
+	my $execstart = time();
 	my ($out,$err);
 	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		printlog "Successfully archived files from $dir.";
+		my $duration = time()-$execstart;
+		$duration = 1 unless($duration);
+		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(@files)/$duration);
+		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
 		printlog $out if $conf{'verbose'};
 		# files migrated to tape without issue
 	} else {
@@ -86,6 +144,7 @@ while(1) {
 		printlog "STDOUT: $out";
 
 		# Avoid spinning on persistent errors.
-		sleep 60;
+		sleep $conf{sleeptime};
 	}
+	unlink($fn) unless($conf{debug});
 }

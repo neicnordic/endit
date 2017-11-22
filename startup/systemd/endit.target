@@ -1,6 +1,6 @@
 [Unit]
 Description=ENDIT running
-Documentation=https://github.com/maswan/endit
+Documentation=https://github.com/neicnordic/endit
 Requisite=dcache.service
 After=dcache.service
 BindsTo=endit-archiver.service
