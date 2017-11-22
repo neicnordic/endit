@@ -109,8 +109,8 @@ my %confitems = (
 		desc => "When exceeding this usage, in gigabytes, apply additonal dsmcopts.\nCommonly used to trigger usage of multiple tape sessions if one\nsession can't keep up. Recommended setting is somewhere between\ntwice the archiver_threshold1_usage and 20% of the total pool size.",
 	},
 	archiver_threshold2_dsmcopts => {
-		example => "-resourceutilization=5",
-		desc => "Resourceutilization 5 -> 2 producers (ie. write 2 tapes concurrently).\nNote: Node must have MAXNUMMP increased from default 1.",
+		example => "-resourceutilization=3",
+		desc => "Number of tape mounts corresponds to ResourceUtilization - 1.\nNote: Node must have MAXNUMMP increased from default 1.",
 	},
 	archiver_threshold3_usage => {
 		desc => "Also archiver_threshold3 ... archiver_threshold9 available if needed.",
