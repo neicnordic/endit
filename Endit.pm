@@ -21,6 +21,7 @@ use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
+use Sys::Hostname;
 
 our (@ISA, @EXPORT_OK);
 BEGIN {
@@ -43,8 +44,13 @@ sub printlog($) {
 		open $lf, '>>', $logfilename or warn "Failed to open $logfilename: $!";
 	}
 
+	my $desc = "";
+	if($conf{'desc-short'}) {
+		$desc = "$conf{'desc-short'} ";
+	}
+
 	chomp($msg);
-	my $str = "$now [$$] $msg\n";
+	my $str = "$now ${desc}[$$] $msg\n";
 
 	if($lf && $lf->opened) {
 		print $lf $str;
@@ -72,6 +78,14 @@ my %confobsolete = (
 );
 
 my %confitems = (
+	'desc-short' => {
+		example => 'endit-'.hostname,
+		desc => 'Short description of this instance, written on each log line',
+	},
+	'desc-long' => {
+		example => 'ENDIT configuration on host '.hostname,
+		desc => 'Long description of this instance, written on startup',
+	},
 	dir => {
 		example => '/grid/pool',
 		desc => 'Base directory',
@@ -253,7 +267,7 @@ sub readconf() {
 	}
 
 	# Verify that required parameters are defined
-	foreach my $param (qw{dir logdir dsmcopts}) {
+	foreach my $param (qw{dir logdir dsmcopts desc-short desc-long}) {
 		if(!defined($conf{$param})) {
 			die "$conffile: $param is a required parameter, exiting";
 		}
