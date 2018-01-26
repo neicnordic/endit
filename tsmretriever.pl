@@ -91,6 +91,37 @@ sub processing_file($$) {
 	}
 }
 
+# Clean a directory.
+# Removes files older than $maxage days in directory $dir.
+sub cleandir($$) {
+	my ($dir, $maxagedays) = @_;
+
+	my $maxage = time() - $maxagedays*86400;
+
+	opendir(my $rd, $dir) || die "opendir $dir: $!";
+	my (@files) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
+	closedir($rd);
+
+	return unless(@files);
+
+	foreach my $f (@files) {
+		my $fn = "$dir/$f";
+		my ($mtime, $ctime) = (stat $fn)[9,10];
+
+		if(!defined($ctime)) {
+			printlog "Failed to stat() file $fn: $!";
+			next;
+		}
+
+		if($mtime < $maxage && $ctime < $maxage) {
+			printlog "File $fn mtime $mtime ctime $ctime is stale, removing";
+			if(!unlink($fn)) {
+				printlog "unlink file $fn failed: $!";
+			}
+		}
+	}
+}
+
 my $tapelistmodtime=0;
 my $tapelist = {};
 my %reqset;
@@ -98,6 +129,9 @@ my %lastmount;
 my @workers;
 
 printlog("$0: Starting...");
+
+# Clean up stale indir remnants left by earlier crashes/restarts
+cleandir("$conf{dir}/in", 30);
 
 # Warning: Infinite loop. Program may not stop.
 while(1) {
