@@ -88,7 +88,7 @@ while(1) {
 			$timer = 0;
 		}
 		if($timer < $conf{archiver_timeout}) {
-			printlog "Only $usagestr, sleeping a while (slept $timer s)" if($conf{verbose});
+			printlog "Only $usagestr used, sleeping a while (slept $timer s)" if($conf{debug});
 			sleep $conf{sleeptime};
 			$timer += $conf{sleeptime};
 			next;
@@ -97,7 +97,14 @@ while(1) {
 
 	$timer = undef;
 
-	printlog "Trying to archive files from $dir - $usagestr";
+	my $logstr = "Trying to archive $usagestr from $dir";
+
+	if($conf{verbose}) {
+		$logstr .= " (files: " . join(" ", @files) . ")";
+	}
+
+	printlog $logstr;
+	$logstr = undef;
 
 	my $dounlink = 1;
 	$dounlink=0 if($conf{debug});
@@ -124,7 +131,7 @@ while(1) {
 		$duration = 1 unless($duration);
 		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(@files)/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
-		printlog $out if $conf{'verbose'};
+		printlog $out if $conf{'debug'};
 		# files migrated to tape without issue
 	} else {
 		# something went wrong. log and hope for better luck next time?

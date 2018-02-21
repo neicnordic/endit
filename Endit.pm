@@ -157,12 +157,12 @@ my %confitems = (
 	},
 
 	verbose => {
-		default => 0,
-		desc => 'Enable verbose logging (1/true to enable)',
+		default => 1,
+		desc => 'Enable verbose logging including processed files (1 to enable, 0 to disable)',
 	},
 	debug => {
 		default => 0,
-		desc => 'Enable debug mode/logging (1/true to enable)',
+		desc => 'Enable debug mode/logging (1 to enable, 0 to disable)',
 	},
 );
 

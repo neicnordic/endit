@@ -262,7 +262,7 @@ while(1) {
 		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
 			last if(scalar(@workers) >= $conf{'retriever_maxworkers'});
 
-			printlog "Oldest job on volume $tape: " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{timestamp})) if($conf{verbose});
+			printlog "Oldest job on volume $tape: " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{timestamp})) if($conf{debug});
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay};
 
@@ -270,6 +270,8 @@ while(1) {
 
 			my $lfentries = 0;
 			my $lfsize = 0;
+			my $lffiles = "";
+			$lffiles .= " files:" if($conf{verbose});
 			foreach my $name (keys %{$job->{$tape}}) {
 				my $reqinfo = checkrequest($name);
 				next unless($reqinfo);
@@ -279,6 +281,7 @@ while(1) {
 				if($reqinfo->{file_size}) {
 					$lfsize += $reqinfo->{file_size};
 				}
+				$lffiles .= " $name" if($conf{verbose});
 			}
 			close $lf or die "Closing $listfile failed: $!";
 
@@ -289,7 +292,7 @@ while(1) {
 			$lastmount{$tape} = time;
 
 			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
-			printlog "Running worker on volume $tape ($lfstats)";
+			printlog "Running worker on volume $tape ($lfstats)$lffiles";
 
 #			spawn worker
 			my $pid;
@@ -308,7 +311,8 @@ while(1) {
 				undef $job;
 				@workers=();
 
-				printlog "Trying to retrieve files from volume $tape using file list $listfile" if($conf{verbose});
+				# printlog():s in child gets the child pid
+				printlog "Trying to retrieve files from volume $tape using file list $listfile";
 
 				my $indir = $conf{dir} . '/in/';
 				my @dsmcopts = split /, /, $conf{'dsmcopts'};
