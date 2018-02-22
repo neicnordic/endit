@@ -267,11 +267,19 @@ while(1) {
 
 #		start jobs on tapes not already taken up until retriever_maxworkers
 		foreach my $tape (sort { $job->{$a}->{tsoldest} <=> $job->{$b}->{tsoldest} } keys %{$job}) {
-			last if(scalar(@workers) >= $conf{'retriever_maxworkers'});
-
+			if(scalar(@workers) >= $conf{'retriever_maxworkers'}) {
+				printlog "At $conf{'retriever_maxworkers'}, not starting more jobs" if($conf{debug});
+				last;
+			}
 			printlog "Jobs on volume $tape: oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest})) if($conf{debug});
-			next if exists $usedtapes{$tape};
-			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay};
+			if(exists($usedtapes{$tape})) {
+				printlog "Job already running for volume $tape, skipping" if($conf{debug});
+				next;
+			}
+			if($tape ne 'default' && defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay}) {
+				printlog "Volume $tape last mounted at " . strftime("%Y-%m-%d %H:%M:%S",localtime($lastmount{$tape})) . " which is more recent than remountdelay $conf{retriever_remountdelay}s ago, skipping";
+				next;
+			}
 
 			my ($lf, $listfile) = tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0);
 
