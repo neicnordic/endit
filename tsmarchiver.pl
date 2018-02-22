@@ -51,7 +51,11 @@ $SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
 $SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
 $SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
 
-printlog("$0: Starting...");
+my $desclong="";
+if($conf{'desc-long'}) {
+	$desclong = " $conf{'desc-long'}";
+}
+printlog("$0: Starting$desclong...");
 
 my $timer;
 while(1) {

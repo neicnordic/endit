@@ -146,7 +146,11 @@ sub monthsago {
 	return ($fy-$sy)*12+$fm-$sm;
 }
 
-printlog("$0: Starting...");
+my $desclong="";
+if($conf{'desc-long'}) {
+	$desclong = " $conf{'desc-long'}";
+}
+printlog("$0: Starting$desclong...");
 
 while(1) {
 	opendir(my $td, $trashdir) || die "opendir $trashdir: $!";

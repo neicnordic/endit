@@ -128,7 +128,11 @@ my %reqset;
 my %lastmount;
 my @workers;
 
-printlog("$0: Starting...");
+my $desclong="";
+if($conf{'desc-long'}) {
+	$desclong = " $conf{'desc-long'}";
+}
+printlog("$0: Starting$desclong...");
 
 # Clean up stale indir remnants left by earlier crashes/restarts
 cleandir("$conf{dir}/in", 30);
