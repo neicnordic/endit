@@ -249,20 +249,27 @@ while(1) {
 				$tape = 'default';
 			}
 			$job->{$tape}->{$name} = $req;
-			if(defined $job->{$tape}->{timestamp}) {
-				if($job->{$tape}->{timestamp} > $req->{timestamp}){
-					$job->{$tape}->{timestamp} = $req->{timestamp}
+			if(defined $job->{$tape}->{tsoldest}) {
+				if($job->{$tape}->{tsoldest} > $req->{timestamp}){
+					$job->{$tape}->{tsoldest} = $req->{timestamp}
 				}
 			} else {
-				$job->{$tape}->{timestamp}=$req->{timestamp};
+				$job->{$tape}->{tsoldest}=$req->{timestamp};
+			}
+			if(defined $job->{$tape}->{tsnewest}) {
+				if($job->{$tape}->{tsnewest} < $req->{timestamp}){
+					$job->{$tape}->{tsnewest} = $req->{timestamp}
+				}
+			} else {
+				$job->{$tape}->{tsnewest}=$req->{timestamp};
 			}
 		}
 
 #		start jobs on tapes not already taken up until retriever_maxworkers
-		foreach my $tape (sort { $job->{$a}->{timestamp} <=> $job->{$b}->{timestamp} } keys %{$job}) {
+		foreach my $tape (sort { $job->{$a}->{tsoldest} <=> $job->{$b}->{tsoldest} } keys %{$job}) {
 			last if(scalar(@workers) >= $conf{'retriever_maxworkers'});
 
-			printlog "Oldest job on volume $tape: " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{timestamp})) if($conf{debug});
+			printlog "Jobs on volume $tape: oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest})) if($conf{debug});
 			next if exists $usedtapes{$tape};
 			next if $tape ne 'default' and defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay};
 
@@ -292,6 +299,7 @@ while(1) {
 			$lastmount{$tape} = time;
 
 			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
+			$lfstats .= ", oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
 			printlog "Running worker on volume $tape ($lfstats)$lffiles";
 
 #			spawn worker
