@@ -34,6 +34,10 @@ BEGIN {
 our $logsuffix;
 our %conf;
 
+# Remember PID of the master process, otherwise log messages from worker
+# children gets logged with different PID...
+my $masterpid;
+
 sub printlog($) {
 	my $msg = shift;
 	my $now = strftime '%Y-%m-%d %H:%M:%S', localtime;
@@ -48,9 +52,17 @@ sub printlog($) {
 	if($conf{'desc-short'}) {
 		$desc = "$conf{'desc-short'} ";
 	}
+	if(!defined($masterpid)) {
+		$masterpid = $$;
+	}
+
+	my $childpid="";
+	if($masterpid != $$) {
+		$childpid="[$$]";
+	}
 
 	chomp($msg);
-	my $str = "$now ${desc}[$$] $msg\n";
+	my $str = "$now ${desc}[$masterpid]$childpid $msg\n";
 
 	if($lf && $lf->opened) {
 		print $lf $str;
