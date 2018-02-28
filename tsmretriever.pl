@@ -344,8 +344,9 @@ while(1) {
 				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
 					my $duration = time()-$execstart;
 					$duration = 1 unless($duration);
-					my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), $lfentries/$duration);
-					printlog "Retrieve operation from volume $tape successful, duration $duration seconds, average rate $stats";
+					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
+					my $speedstats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), $lfentries/$duration);
+					printlog "Retrieve operation from volume $tape successful, $sizestats took $duration seconds, average rate $speedstats";
 
 					# sleep to let requester remove requests
 					sleep 3;
