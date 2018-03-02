@@ -109,7 +109,7 @@ my %files;
 # List the contents of all volumes
 foreach my $volume (@volumes) {
     debug "Getting content of volume $volume ...";
-    my @t=dsm_cmd("q content $volume node=$opts{N} damaged=no f=d") or die "Failed to query content on $volume";
+    my @t=dsm_cmd("q content $volume node=$opts{N} f=d") or die "Failed to query content on $volume";
     foreach my $line (@t) {
         my($nodename, $type, $fsname, $hexfsname, $fsid, $filename, $hexfilename, $isaggr, $size, $segment, $cached) = split (/\t/, $line);
 
