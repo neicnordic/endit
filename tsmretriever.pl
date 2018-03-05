@@ -275,13 +275,16 @@ while(1) {
 				printlog "At $conf{'retriever_maxworkers'}, not starting more jobs" if($conf{debug});
 				last;
 			}
+
 			printlog "Jobs on volume $tape: oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest})) if($conf{debug});
+
 			if(exists($usedtapes{$tape})) {
-				printlog "Job already running for volume $tape, skipping" if($conf{debug});
+				printlog "Skipping volume $tape, job already running" if($conf{debug});
 				next;
 			}
+
 			if($tape ne 'default' && defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay}) {
-				printlog "Volume $tape last mounted at " . strftime("%Y-%m-%d %H:%M:%S",localtime($lastmount{$tape})) . " which is more recent than remountdelay $conf{retriever_remountdelay}s ago, skipping";
+				printlog "Skipping volume $tape, last mounted at " . strftime("%Y-%m-%d %H:%M:%S",localtime($lastmount{$tape})) . " which is more recent than remountdelay $conf{retriever_remountdelay}s ago" if($conf{verbose});
 				next;
 			}
 
