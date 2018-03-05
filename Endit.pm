@@ -171,6 +171,14 @@ my %confitems = (
 		example => "/var/spool/endit/tapehints/EXAMPLENODE.txt",
 		desc => "Tape hints file for concurrent dsmc retrievers. Generate using\ntsm_getvolumecontent.pl for the -asnode user you configured in dsmcopts",
 	},
+	retriever_reqlistfillwait => {
+		default => 600,
+		desc => "Wait this long after last request before starting a worker for a volume, seconds",
+	},
+	retriever_reqlistfillwaitmax => {
+		default => 7200,
+		desc => "Force start a worker after this long even if the request list for this volume is still filling up, seconds",
+	},
 
 	verbose => {
 		default => 1,
