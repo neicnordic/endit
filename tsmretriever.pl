@@ -253,6 +253,12 @@ while(1) {
 				$tape = 'default';
 			}
 			$job->{$tape}->{$name} = $req;
+			if(defined($job->{$tape}->{listsize})) {
+				$job->{$tape}->{listsize} ++;
+			}
+			else {
+				$job->{$tape}->{listsize} = 1;
+			}
 			if(defined $job->{$tape}->{tsoldest}) {
 				if($job->{$tape}->{tsoldest} > $req->{timestamp}){
 					$job->{$tape}->{tsoldest} = $req->{timestamp}
@@ -289,7 +295,7 @@ while(1) {
 			}
 
 			if($tape ne 'default' && $job->{$tape}->{tsoldest} > time()-$conf{retriever_reqlistfillwaitmax} && $job->{$tape}->{tsnewest} > time()-$conf{retriever_reqlistfillwait}) {
-				printlog "Skipping volume $tape, request list still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest})) if($conf{verbose});
+				printlog "Skipping volume $tape, request list $job->{$tape}->{listsize} entries and still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest})) if($conf{verbose});
 				next;
 			}
 
