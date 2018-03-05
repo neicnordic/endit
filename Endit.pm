@@ -160,7 +160,11 @@ my %confitems = (
 		desc => "Maximum number of concurrent dsmc retrievers.\nNote: Node must have MAXNUMMP increased from default 1.",
 	},
 	retriever_remountdelay => {
-		default => 600,
+		# IBM tapes are specified to endure at least 20000 mounts
+		# during the lifetime. That's 6 mounts per day for 10 years. 
+		# Assuming the worst-case load peaks are not continuous
+		# 12 mounts per day or 2 hours (7200 s) is a reasonable default.
+		default => 7200,
 		desc => "When in concurrent mode, don't remount tapes more often than this, seconds",
 	},
 	retriever_hintfile => {
