@@ -95,7 +95,7 @@ my %confitems = (
 		desc => 'Short description of this instance, written on each log line',
 	},
 	'desc-long' => {
-		example => 'ENDIT configuration on host '.hostname,
+		example => 'ENDIT on host '.hostname,
 		desc => 'Long description of this instance, written on startup',
 	},
 	dir => {
