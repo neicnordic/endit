@@ -86,7 +86,13 @@ admin interface.
 It's all healthy perl, no icky surprises, I hope. Patches, suggestions, etc are
 most welcome.
 
-License: GPL
+## License
+
+GPL-3.0, see [LICENSE](LICENSE)
+
+## Versioning
+
+[Semantic Versioning 2.0.0](https://semver.org/)
 
 # Contributors
 
