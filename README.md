@@ -18,7 +18,7 @@ It is known to work on Perl >= 5.14, but notably 5.10 does not work.
 # Installation and Configuration
 
 All dCache tape pools needs both the ENDIT dCache plugin and the ENDIT daemons
-installed.
+installed. 
 
 More verbose instructions are available at
 https://wiki.neic.no/wiki/DCache_TSM_interface
@@ -40,7 +40,8 @@ concurrent dsmc archive and retrieve sessions.
 
 ## dCache
 
-The ENDIT dCache plugin needs to be installed on the pool.
+The [ENDIT dCache plugin](https://github.com/neicnordic/dcache-endit-provider/)
+needs to be installed on the pool.
 
 To get good store performance the dCache pool must be tuned for continuous
 flushing.
