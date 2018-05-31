@@ -125,8 +125,9 @@ while(1) {
 		printlog "Adding ${triggerthreshold}_dsmcopts " . $conf{"${triggerthreshold}_dsmcopts"} if($conf{debug});
 		push @dsmcopts, split(/, /, $conf{"${triggerthreshold}_dsmcopts"});
 	}
+	my $date=strftime("%Y-%m",localtime());
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
-		"-description=endit","-filelist=$fn");
+		"-description=endit-$date","-filelist=$fn");
 	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 	my $execstart = time();
 	my ($out,$err);
