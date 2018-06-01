@@ -116,7 +116,7 @@ while(1) {
 	print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 	close($fh) || die "Failed writing to $fn: $!";
 
-	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	my @dsmcopts = split(/, /, $conf{'dsmcopts'});
 	if(!$triggerthreshold && $conf{archiver_timeout_dsmcopts}) {
 		printlog "Adding archiver_timeout_dsmcopts " . $conf{archiver_timeout_dsmcopts} if($conf{debug});
 		push @dsmcopts, split(/, /, $conf{archiver_timeout_dsmcopts});

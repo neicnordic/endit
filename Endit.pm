@@ -110,6 +110,12 @@ my %confitems = (
 		example => '-asnode=EXAMPLENODE, -errorlogname=/var/log/dcache/dsmerror.log',
 		desc => 'Base options to dsmc, ", "-delimited list',
 	},
+	dsmc_displayopts => {
+		default => '-dateformat=3, -timeformat=1, -numberformat=1',
+		# dsmc display options, not intended to be modified by users.
+		# Used for all commands except archive.
+		# ", "-delimited list.
+	},
 	sleeptime => {
 		default => 60,
 		desc => 'Sleep for this many seconds between each cycle',

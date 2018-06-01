@@ -99,7 +99,8 @@ sub rundelete {
 	my $filelist=shift;
 	my $reallybroken=0;
 	my($out, $err);
-	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
+	push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 	my @cmd = ('dsmc','delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
         printlog "Executing: " . join(" ", @cmd) if($conf{debug});

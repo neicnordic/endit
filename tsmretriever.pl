@@ -349,7 +349,8 @@ while(1) {
 				printlog "Trying to retrieve files from volume $tape using file list $listfile";
 
 				my $indir = $conf{dir} . '/in/';
-				my @dsmcopts = split /, /, $conf{'dsmcopts'};
+				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
+				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
 				printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 				my $execstart = time();
