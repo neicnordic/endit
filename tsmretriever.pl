@@ -33,8 +33,6 @@ $Endit::logsuffix = 'tsmretriever.log';
 
 readconf();
 
-my $listfilecounter = 0;
-
 # Try to send warn/die messages to log file
 INIT {
         $SIG{__DIE__}=sub {
