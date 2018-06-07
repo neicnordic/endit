@@ -19,7 +19,6 @@
 use warnings;
 use strict;
 
-use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
@@ -130,13 +129,36 @@ while(1) {
 		"-description=ENDIT-$now","-filelist=$fn");
 	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 	my $execstart = time();
-	my ($out,$err);
-	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
+
+	my $dsmcfh;
+	my @errmsgs;
+	my @out;
+	if(open($dsmcfh, "-|", @cmd)) {
+		while(<$dsmcfh>) {
+			chomp;
+
+			# Catch error messages, only printed on non-zero return
+			# code from dsmc
+			if(/^AN\w\d\d\d\d\w/) {
+				push @errmsgs, $_;
+				next;
+			}
+			# Save all output
+			push @out, $_;
+		}
+	}
+
+	if(!close($dsmcfh) && $!) {
+		warn "closing pipe from dsmc: $!";
+	}
+	if($? == 0) { 
 		my $duration = time()-$execstart;
 		$duration = 1 unless($duration);
 		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(@files)/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
-		printlog $out if $conf{'debug'};
+		if($conf{debug}) {
+			printlog "dsmc output: " . join("\n", @out);
+		}
 		# files migrated to tape without issue
 	} else {
 		# something went wrong. log and hope for better luck next time?
@@ -145,15 +167,20 @@ while(1) {
 			$msg .= "failed to execute: $!";
 		}
 		elsif ($? & 127) {
-			$msg .= sprintf "child died with signal %d, %s coredump",
+			$msg .= sprintf "dsmc died with signal %d, %s coredump",
 			       ($? & 127),  ($? & 128) ? 'with' : 'without';
 		}
 		else {
-			$msg .= sprintf "child exited with value %d\n", $? >> 8;
+			$msg .= sprintf "dsmc exited with value %d\n", $? >> 8;
 		}
 		printlog "$msg";
-		printlog "STDERR: $err";
-		printlog "STDOUT: $out";
+
+		foreach my $errmsg (@errmsgs) {
+			printlog "dsmc error message: $errmsg";
+		}
+		if($conf{verbose}) {
+			printlog "dsmc output: " . join("\n", @out);
+		}
 
 		# Avoid spinning on persistent errors.
 		sleep $conf{sleeptime};

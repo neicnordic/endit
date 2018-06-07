@@ -19,7 +19,6 @@
 use warnings;
 use strict;
 
-use IPC::Run3;
 use POSIX qw(strftime WNOHANG);
 use JSON;
 use File::Temp qw /tempfile/;
@@ -388,9 +387,47 @@ while(1) {
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
 				printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 				my $execstart = time();
-				my ($in,$out,$err);
-				$in="A\n";
-				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
+				my @out;
+				my @errmsgs;
+				my $usractionreq = 0;
+				my $dsmcpid = open(my $dsmcfh, "-|", @cmd);
+				if($dsmcpid) {
+					while(<$dsmcfh>) {
+						chomp;
+
+						# Catch error messages, only
+						# printed on non-zero return
+						# code from dsmc
+						if(/^AN\w\d\d\d\d\w/) {
+							push @errmsgs, $_;
+						}
+
+						# Detect and save interactive
+						# messages as error messages
+						if(/^--- User Action is Required ---$/) {
+							$usractionreq = 1;
+						}
+						if($usractionreq) {
+							push @errmsgs, $_;
+						}
+
+						# Save all output for verbose
+						# output
+						push @out, $_;
+
+						if(/^Action\s+\[.*\]\s+:/) {
+							printlog "dsmc prompt detected, aborting";
+							kill("TERM", $dsmcpid);
+							last;
+						}
+
+					}
+
+				}
+				if(!close($dsmcfh) && $!) {
+					warn "closing pipe from dsmc: $!";
+				}
+				if($? == 0) {
 					my $duration = time()-$execstart;
 					$duration = 1 unless($duration);
 					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
@@ -409,11 +446,16 @@ while(1) {
 						$msg .= sprintf "child died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
 					}
 					else {
-						$msg .= sprintf "child exited with value %d\n", $? >> 8;
+						$msg .= sprintf "child exited with value %d", $? >> 8;
 					}
 					printlog "$msg";
-					printlog "STDERR: $err";
-					printlog "STDOUT: $out";
+
+					foreach my $errmsg (@errmsgs) {
+						printlog "dsmc error message: $errmsg";
+					}
+					if($conf{verbose}) {
+						printlog "dsmc output: " . join("\n", @out);
+					}
 
 					# sleep to pace ourselves if these are
 					# persistent reoccurring failures

@@ -19,7 +19,6 @@
 use warnings;
 use strict;
 
-use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
@@ -104,18 +103,49 @@ sub rundelete {
 	my @cmd = ('dsmc','delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
         printlog "Executing: " . join(" ", @cmd) if($conf{debug});
-	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		# files removed from tape without issue
-	} else {
-		# ANS1345E - file already deleted
-		# or ANS1302E - all files already deleted
-		# Also ignore ANS1278W - irrelevant
-		my @outl = split /\n/m, $out;
-		my @errorcodes = grep (/^ANS/, @outl);
-		foreach my $error (@errorcodes) {
-			if($error =~ /^ANS1345E/ or $error =~ /^ANS1302E/ or $error =~ /^ANS1278W/ or $error =~ /^ANS1898I/) {
-				printlog "File already deleted:\n$error\n" if $conf{'verbose'};
-			} else {
+
+	my $dsmcfh;
+	my @errmsgs;
+	my @out;
+	if(open($dsmcfh, "-|", @cmd)) {
+		while(<$dsmcfh>) {
+			chomp;
+
+			# Catch error messages.
+			if(/^AN\w\d\d\d\d\w/) {
+				push @errmsgs, $_;
+				next;
+			}
+			# Save all output
+			push @out, $_;
+		}
+	}
+	if(!close($dsmcfh) && $!) {
+		warn "closing pipe from dsmc: $!";
+	}
+
+	if($? != 0) { 
+		# Some kind of problem occurred.
+
+		# Ignore known benign errors:
+		# - ANS1345E No objects on the server match object-name
+		# => file already deleted
+		# - ANS1302E No objects on server match query
+		# => all files already deleted
+		# - ANS1278W Virtual mount point 'filespace-name' is a file
+		#   system. It will be backed up as a file system.
+		# => irrelevant noise
+		# - ANS1898I ***** Processed count files *****
+		# => progress information
+
+		foreach (@errmsgs) {
+			if(/^ANS1278W/ or /^ANS1898I/) {
+				next;
+			}
+			elsif(/^ANS1345E/ or /^ANS1302E/) {
+				printlog "File already deleted: $_" if $conf{'verbose'};
+			}
+			else {
 				$reallybroken=1;
 			}
 		}
@@ -132,8 +162,9 @@ sub rundelete {
 				$msg .= sprintf "child exited with value %d\n", $? >> 8;
 			}
 			printlog "$msg";
-			printlog "STDERR: $err";
-			printlog "STDOUT: $out";
+			if($conf{verbose}) {
+				printlog "dsmc output: " . join("\n", @out);
+			}
 		}
 	}
 	return $reallybroken;
