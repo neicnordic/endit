@@ -174,8 +174,8 @@ my %confitems = (
 		desc => "When in concurrent mode, don't remount tapes more often than this, seconds",
 	},
 	retriever_hintfile => {
-		example => "/var/spool/endit/tapehints/EXAMPLENODE.txt",
-		desc => "Tape hints file for concurrent dsmc retrievers. Generate using\ntsm_getvolumecontent.pl for the -asnode user you configured in dsmcopts",
+		example => "/var/spool/endit/tapehints/EXAMPLENODE.json",
+		desc => "Tape hints file for concurrent dsmc retrievers. Generate by\nperiodically running either tsmtapehintspl (on node running ENDIT) or\ntsm_getvolumecontent.pl (requires TSM server credentials) for the\n-asnode user you configured in dsmcopts",
 	},
 	retriever_reqlistfillwait => {
 		default => 600,
@@ -340,22 +340,6 @@ sub getusage($@) {
 	printlog "Total size: $size bytes" if($conf{debug});
 
 	return $size/(1024*1024*1024); # GiB
-}
-
-sub readtapelist($) {
-	my $tapefile = shift;
-	printlog "reading tape list $tapefile" if $conf{verbose};
-	my $out = {};
-	open my $tf, '<', $tapefile or return undef;
-	while (<$tf>) {
-		chomp;
-		my ($id,$tape) = split /\s+/;
-		next unless defined $id && defined $tape;
-		$tape=~tr/a-zA-Z0-9.-/_/cs;
-		$out->{$id} = $tape;
-	}
-	close($tf);
-	return $out;
 }
 
 1;

@@ -120,6 +120,40 @@ sub cleandir($$) {
 	}
 }
 
+sub readtapelist() {
+
+        printlog "reading tape hints from $conf{retriever_hintfile}" if $conf{verbose};
+
+	if(open my $tf, '<', $conf{retriever_hintfile}) {
+		my $out;
+		eval {
+			local $SIG{__WARN__} = sub {};
+			local $SIG{__DIE__} = sub {};
+
+			$out = decode_json(<$tf>);
+		};
+		if($@) {
+			warn "Parsing $conf{retriever_hintfile} as JSON failed: $@";
+			warn "Falling back to parse as old format, consider regenerating hint file in current JSON format";
+			seek($tf, 0, 0) || die "Unable to seek to beginning: $!";
+			while (<$tf>) {
+				chomp;
+				my ($id,$tape) = split /\s+/;
+				next unless defined $id && defined $tape;
+				$out->{$id}{volid} = $tape;
+			}
+
+		}
+		close($tf);
+		return $out;
+	}
+	else {
+		warn "open $conf{retriever_hintfile}: $?";
+		return undef;
+	}
+
+}
+
 my $tapelistmodtime=0;
 my $tapelist = {};
 my %reqset;
@@ -139,22 +173,21 @@ cleandir("$conf{dir}/in", 30);
 while(1) {
 #	load/refresh tape list
 	if (exists $conf{retriever_hintfile}) {
-		my $tapefilename = $conf{retriever_hintfile};
-		my $newtapemodtime = (stat $tapefilename)[9];
+		my $newtapemodtime = (stat $conf{retriever_hintfile})[9];
 		if(defined $newtapemodtime) {
-			if ($newtapemodtime > $tapelistmodtime) {
-				my $newtapelist = Endit::readtapelist($tapefilename);
+			if($newtapemodtime > $tapelistmodtime) {
+				my $newtapelist = readtapelist();
 				if ($newtapelist) {
 					my $loadtype = "loaded";
 					if(scalar(keys(%{$tapelist}))) {
 						$loadtype = "reloaded";
 					}
-					printlog "Tape hint file $tapefilename ${loadtype}, " . scalar(keys(%{$newtapelist})) . " entries.";
+					printlog "Tape hint file $conf{retriever_hintfile} ${loadtype}, " . scalar(keys(%{$newtapelist})) . " entries.";
 
 					$tapelist = $newtapelist;
 					$tapelistmodtime = $newtapemodtime;
 				}
-			} 
+			}
 		} else {
 			printlog "Warning: retriever_hintfile set to $conf{retriever_hintfile}, but this file does not seem to exist";
 		}
@@ -221,7 +254,10 @@ while(1) {
 				my $reqinfo = {timestamp => $ts } if defined $ts;
 				if ($reqinfo) {
 					if (!exists $reqinfo->{tape}) {
-						if (my $tape = $tapelist->{$req}) {
+						if (my $tape = $tapelist->{$req}{volid}) {
+							# Ensure name contains
+							# no fs path characters
+							$tape=~tr/a-zA-Z0-9.-/_/cs;
 							$reqinfo->{tape} = $tape;
 						} else {
 							$reqinfo->{tape} = 'default';
