@@ -171,7 +171,7 @@ while(1) {
 			       ($? & 127),  ($? & 128) ? 'with' : 'without';
 		}
 		else {
-			$msg .= sprintf "dsmc exited with value %d\n", $? >> 8;
+			$msg .= sprintf "dsmc exited with value %d", $? >> 8;
 		}
 		printlog "$msg";
 

@@ -159,7 +159,7 @@ sub rundelete {
 				$msg .= sprintf "child died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
 			}
 			else {
-				$msg .= sprintf "child exited with value %d\n", $? >> 8;
+				$msg .= sprintf "child exited with value %d", $? >> 8;
 			}
 			printlog "$msg";
 			if($conf{verbose}) {
