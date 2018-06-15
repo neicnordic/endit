@@ -193,7 +193,14 @@ while(1) {
 		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
-		printlog "Trying to delete " . scalar(@files) . " files from file list $filename";
+
+		my $logstr = "Trying to delete " . scalar(@files) . " files from file list $filename";
+		if($conf{verbose}) {
+			$logstr .= " (files: " . join(" ", @files) . ")";
+		}
+		printlog $logstr;
+		$logstr = undef;
+
 		if(rundelete($filename)) {
 			# Have already warned in rundelete()
 		} else {
