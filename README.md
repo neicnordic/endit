@@ -9,9 +9,9 @@ ENDIT is comprised of an ENDIT dCache plugin and the ENDIT daemons.
 
 # Requirements
 
-At least the following Perl modules need to be installed:
+At least the following Perl module need to be installed:
 
-* JSON, IPC::Run3
+* JSON
 
 It is known to work on Perl >= 5.14, but notably 5.10 does not work.
 

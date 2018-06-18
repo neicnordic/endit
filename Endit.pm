@@ -17,7 +17,6 @@
 package Endit;
 use strict;
 use warnings;
-use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
