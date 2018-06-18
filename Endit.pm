@@ -175,7 +175,7 @@ my %confitems = (
 	},
 	retriever_hintfile => {
 		example => "/var/spool/endit/tapehints/EXAMPLENODE.json",
-		desc => "Tape hints file for concurrent dsmc retrievers. Generate by\nperiodically running either tsmtapehintspl (on node running ENDIT) or\ntsm_getvolumecontent.pl (requires TSM server credentials) for the\n-asnode user you configured in dsmcopts",
+		desc => "Tape hints file for concurrent dsmc retrievers. Generate by\nperiodically running either tsmtapehints.pl (on node running ENDIT) or\ntsm_getvolumecontent.pl (requires TSM server credentials) for the\n-asnode user you configured in dsmcopts",
 	},
 	retriever_reqlistfillwait => {
 		default => 600,
