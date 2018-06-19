@@ -111,9 +111,9 @@ Benefits:
 Drawbacks:
 
 * More cumbersome to set up:
-** Requires dsmadmc
-** Requires close cooperation with TSM server admins due to admin user etc.
-** Requires TSM admin user password in a clear-text file
+  * Requires dsmadmc
+  * Requires close cooperation with TSM server admins due to admin user etc.
+  * Requires TSM admin user password in a clear-text file
 
 ### tsmtapehints.pl
 
@@ -124,8 +124,8 @@ information.
 Benefits:
 
 * Easier to set up:
-** Uses the ENDIT configuration file
-** Only needs periodic invocation (crontab, systemd timer)
+  * Uses the ENDIT configuration file
+  * Only needs periodic invocation (crontab, systemd timer)
 
 Drawbacks:
 
