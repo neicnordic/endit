@@ -126,6 +126,8 @@ Benefits:
 * Easier to set up:
   * Uses the ENDIT configuration file
   * Only needs periodic invocation (crontab, systemd timer)
+* Performs some sanity checking, in particular detection of duplicates
+  of archived files (multiple tape copies of the same file object)
 
 Drawbacks:
 
