@@ -340,21 +340,21 @@ while(1) {
 			}
 
 			my ($lf, $listfile) = tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0);
+			my %lfinfo;
 
-			my $lfentries = 0;
 			my $lfsize = 0;
-			my $lffiles = "";
-			$lffiles .= " files:" if($conf{verbose});
 			foreach my $name (keys %{$job->{$tape}}) {
 				my $reqinfo = checkrequest($name);
 				next unless($reqinfo);
 
 				print $lf "$conf{dir}/out/$name\n";
-				$lfentries ++;
 				if($reqinfo->{file_size}) {
+					$lfinfo{$name} = $reqinfo->{file_size};
 					$lfsize += $reqinfo->{file_size};
 				}
-				$lffiles .= " $name" if($conf{verbose});
+				else {
+					$lfinfo{$name} = -1;
+				}
 			}
 			close $lf or die "Closing $listfile failed: $!";
 
@@ -364,8 +364,12 @@ while(1) {
 			}
 			$lastmount{$tape} = time;
 
-			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
+			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), scalar(keys(%lfinfo)));
 			$lfstats .= ", oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
+			my $lffiles = "";
+			if($conf{verbose}) {
+				$lffiles .= join(" ", " files:", sort(keys(%lfinfo)));
+			}
 			printlog "Running worker on volume $tape ($lfstats)$lffiles";
 
 #			spawn worker
@@ -402,6 +406,16 @@ while(1) {
 				printlog "Trying to retrieve files from volume $tape using file list $listfile";
 
 				my $indir = $conf{dir} . '/in/';
+
+				# Check for incomplete leftovers of retrieved files
+				while(my($f, $s) = each(%lfinfo)) {
+					my $fn = "$indir/$f";
+					my $fsize = (stat($fn))[7];
+					if(defined($fsize) && $fsize != $s) {
+						printlog("On-disk file $fn size $fsize doesn't match request size $s, removing.") if($conf{verbose});
+						unlink($fn);
+					}
+				}
 				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
@@ -450,8 +464,8 @@ while(1) {
 				if($? == 0) {
 					my $duration = time()-$execstart;
 					$duration = 1 unless($duration);
-					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
-					my $speedstats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), $lfentries/$duration);
+					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), scalar(keys(%lfinfo)));
+					my $speedstats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), scalar(keys(%lfinfo))/$duration);
 					printlog "Retrieve operation from volume $tape successful, $sizestats took $duration seconds, average rate $speedstats";
 
 					# sleep to let requester remove requests
