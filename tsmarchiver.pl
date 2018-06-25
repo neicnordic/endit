@@ -30,6 +30,9 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmarchiver.log';
 
+# Turn off output buffering
+$| = 1;
+
 readconf();
 
 my $filelist = "tsm-archive-files.XXXXXX";

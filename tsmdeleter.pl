@@ -29,6 +29,9 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmdeleter.log';
 
+# Turn off output buffering
+$| = 1;
+
 readconf();
 
 my $filelist = "tsm-delete-files.XXXXXX";

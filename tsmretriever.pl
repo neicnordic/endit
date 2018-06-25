@@ -30,6 +30,9 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmretriever.log';
 
+# Turn off output buffering
+$| = 1;
+
 readconf();
 
 # Try to send warn/die messages to log file
