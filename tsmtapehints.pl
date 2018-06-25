@@ -44,9 +44,18 @@ INIT {
         };
 }
 
-$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
-$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
-$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
+my $dsmcpid;
+sub killchild() {
+
+	if(defined($dsmcpid)) {
+		kill("TERM", $dsmcpid);
+	}
+}
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
 
 my $desclong="";
 if($conf{'desc-long'}) {
@@ -70,7 +79,7 @@ my @cmd = ('dsmc','query','archive','-filesonly','-detail',@dsmcopts,"$outdir/*"
 
 printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 
-open(my $dsmcfh, "-|", @cmd) || die "can't start dsmc: $!";
+$dsmcpid = open(my $dsmcfh, "-|", @cmd) || die "can't start dsmc: $!";
 
 my %tapelist;
 
@@ -183,6 +192,8 @@ elsif($? != 0) {
 
 	die "$msg, aborting...";
 }
+
+$dsmcpid = undef;
 
 my $dupfiles = 0;
 my $dupcount = 0;

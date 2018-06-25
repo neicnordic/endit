@@ -46,9 +46,18 @@ INIT {
         };
 }
 
-$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
-$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
-$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
+my $dsmcpid;
+sub killchild() {
+
+	if(defined($dsmcpid)) {
+		kill("TERM", $dsmcpid);
+	}
+}
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
 
 my $desclong="";
 if($conf{'desc-long'}) {
@@ -133,7 +142,7 @@ while(1) {
 	my $dsmcfh;
 	my @errmsgs;
 	my @out;
-	if(open($dsmcfh, "-|", @cmd)) {
+	if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
 		while(<$dsmcfh>) {
 			chomp;
 
@@ -151,6 +160,7 @@ while(1) {
 	if(!close($dsmcfh) && $!) {
 		warn "closing pipe from dsmc: $!";
 	}
+	$dsmcpid = undef;
 	if($? == 0) { 
 		my $duration = time()-$execstart;
 		$duration = 1 unless($duration);

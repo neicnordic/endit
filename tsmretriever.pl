@@ -44,9 +44,17 @@ INIT {
         };
 }
 
-$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
-$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
-$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
+my @workers;
+sub killchildren() {
+	foreach(@workers) {
+		kill("TERM", $_->{pid});
+	}
+}
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchildren(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchildren(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchildren(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchildren(); exit; };
 
 sub checkrequest($) {
 	my $req = shift;
@@ -157,7 +165,6 @@ my $tapelistmodtime=0;
 my $tapelist = {};
 my %reqset;
 my %lastmount;
-my @workers;
 
 my $desclong="";
 if($conf{'desc-long'}) {
@@ -377,6 +384,19 @@ while(1) {
 				undef $tapelist;
 				undef $job;
 				@workers=();
+				my $dsmcpid;
+				sub killchild() {
+
+					if(defined($dsmcpid)) {
+						kill("TERM", $dsmcpid);
+					}
+				}
+
+				$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); killchild(); exit; };
+				$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); killchild(); exit; };
+				$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); killchild(); exit; };
+				$SIG{HUP} = sub { printlog("Got SIGHUP, exiting..."); killchild(); exit; };
+
 
 				# printlog():s in child gets the child pid
 				printlog "Trying to retrieve files from volume $tape using file list $listfile";
@@ -390,8 +410,8 @@ while(1) {
 				my @out;
 				my @errmsgs;
 				my $usractionreq = 0;
-				my $dsmcpid = open(my $dsmcfh, "-|", @cmd);
-				if($dsmcpid) {
+				my $dsmcfh;
+				if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
 					while(<$dsmcfh>) {
 						chomp;
 
