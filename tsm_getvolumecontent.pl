@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 
 #   tsm_getvolumecontent.pl - helper script to show tsm tape contents
 #   Copyright (C) 2012-2017 <Niklas.Edmundsson@hpc2n.umu.se>
@@ -21,6 +21,8 @@
 use warnings;
 use strict;
 
+use JSON;
+use File::Temp qw /tempfile/;
 use Getopt::Std;
 use File::Basename;
 
@@ -110,6 +112,7 @@ my %files;
 foreach my $volume (@volumes) {
     debug "Getting content of volume $volume ...";
     my @t=dsm_cmd("q content $volume node=$opts{N} f=d") or die "Failed to query content on $volume";
+    my $seqid = 0;
     foreach my $line (@t) {
         my($nodename, $type, $fsname, $hexfsname, $fsid, $filename, $hexfilename, $isaggr, $size, $segment, $cached) = split (/\t/, $line);
 
@@ -125,21 +128,23 @@ foreach my $volume (@volumes) {
         else {
             $filename =~ s!.*/!!;
         }
-        $files{$filename} = $volume;
+        $files{$filename}{volid} = $volume;
+        $files{$filename}{order} = $seqid++; # Assumes q content outputs items in tape order
     }
     debug " Found " . scalar @t . " entries";
 }
 
 debug "Finished, total " . scalar (keys %files) . " entries";
 
-my $tmpf = "$opts{f}.$$"; # Assume we're alone in the destdir
+my $tmpfh = File::Temp->new(TEMPLATE => "$opts{f}.XXXXXX");
+my $tmpf = $tmpfh->filename;
+
 debug "Writing volume contents to file $tmpf";
-open(my $fh, '>', $tmpf) || die "Unable to open $opts{f}: $!";
-my($key,$value);
-while (($key,$value) = each %files) {
-    print $fh "$key\t$value\n" || die "Writing $opts{f}: $!";
-}
-close $fh || die "Closing $tmpf: $!";
+print $tmpfh encode_json(\%files),"\n";
+
+$tmpfh->unlink_on_destroy(0);
+close $tmpfh || die "Closing $tmpf: $!";
+
 debug "Done. Renaming $tmpf to $opts{f}";
 rename($tmpf, $opts{f}) || die "Rename $tmpf to $opts{f}: $!";
 

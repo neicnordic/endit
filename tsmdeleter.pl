@@ -19,7 +19,6 @@
 use warnings;
 use strict;
 
-use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
@@ -29,6 +28,9 @@ use lib dirname (__FILE__);
 use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmdeleter.log';
+
+# Turn off output buffering
+$| = 1;
 
 readconf();
 
@@ -50,9 +52,18 @@ INIT {
         };
 }
 
-$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
-$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
-$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
+my $dsmcpid;
+sub killchild() {
+
+	if(defined($dsmcpid)) {
+		kill("TERM", $dsmcpid);
+	}
+}
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
 
 sub monthdeleted {
 	my $month = shift;
@@ -99,22 +110,56 @@ sub rundelete {
 	my $filelist=shift;
 	my $reallybroken=0;
 	my($out, $err);
-	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
+	push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 	my @cmd = ('dsmc','delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
         printlog "Executing: " . join(" ", @cmd) if($conf{debug});
-	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
-		# files removed from tape without issue
-	} else {
-		# ANS1345E - file already deleted
-		# or ANS1302E - all files already deleted
-		# Also ignore ANS1278W - irrelevant
-		my @outl = split /\n/m, $out;
-		my @errorcodes = grep (/^ANS/, @outl);
-		foreach my $error (@errorcodes) {
-			if($error =~ /^ANS1345E/ or $error =~ /^ANS1302E/ or $error =~ /^ANS1278W/ or $error =~ /^ANS1898I/) {
-				printlog "File already deleted:\n$error\n" if $conf{'verbose'};
-			} else {
+
+	my $dsmcfh;
+	my @errmsgs;
+	my @out;
+	if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
+		while(<$dsmcfh>) {
+			chomp;
+
+			# Catch error messages.
+			if(/^AN\w\d\d\d\d\w/) {
+				push @errmsgs, $_;
+				next;
+			}
+			# Save all output
+			push @out, $_;
+		}
+	}
+	if(!close($dsmcfh) && $!) {
+		warn "closing pipe from dsmc: $!";
+	}
+
+	$dsmcpid = undef;
+
+	if($? != 0) { 
+		# Some kind of problem occurred.
+
+		# Ignore known benign errors:
+		# - ANS1345E No objects on the server match object-name
+		# => file already deleted
+		# - ANS1302E No objects on server match query
+		# => all files already deleted
+		# - ANS1278W Virtual mount point 'filespace-name' is a file
+		#   system. It will be backed up as a file system.
+		# => irrelevant noise
+		# - ANS1898I ***** Processed count files *****
+		# => progress information
+
+		foreach (@errmsgs) {
+			if(/^ANS1278W/ or /^ANS1898I/) {
+				next;
+			}
+			elsif(/^ANS1345E/ or /^ANS1302E/) {
+				printlog "File already deleted: $_" if $conf{'verbose'};
+			}
+			else {
 				$reallybroken=1;
 			}
 		}
@@ -128,11 +173,12 @@ sub rundelete {
 				$msg .= sprintf "child died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
 			}
 			else {
-				$msg .= sprintf "child exited with value %d\n", $? >> 8;
+				$msg .= sprintf "child exited with value %d", $? >> 8;
 			}
 			printlog "$msg";
-			printlog "STDERR: $err";
-			printlog "STDOUT: $out";
+			if($conf{verbose}) {
+				printlog "dsmc output: " . join("\n", @out);
+			}
 		}
 	}
 	return $reallybroken;
@@ -161,7 +207,14 @@ while(1) {
 		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
-		printlog "Trying to delete " . scalar(@files) . " files from file list $filename";
+
+		my $logstr = "Trying to delete " . scalar(@files) . " files from file list $filename";
+		if($conf{verbose}) {
+			$logstr .= " (files: " . join(" ", @files) . ")";
+		}
+		printlog $logstr;
+		$logstr = undef;
+
 		if(rundelete($filename)) {
 			# Have already warned in rundelete()
 		} else {

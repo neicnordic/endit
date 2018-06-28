@@ -19,7 +19,6 @@
 use warnings;
 use strict;
 
-use IPC::Run3;
 use POSIX qw(strftime WNOHANG);
 use JSON;
 use File::Temp qw /tempfile/;
@@ -31,9 +30,10 @@ use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmretriever.log';
 
-readconf();
+# Turn off output buffering
+$| = 1;
 
-my $listfilecounter = 0;
+readconf();
 
 # Try to send warn/die messages to log file
 INIT {
@@ -47,9 +47,17 @@ INIT {
         };
 }
 
-$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
-$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
-$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
+my @workers;
+sub killchildren() {
+	foreach(@workers) {
+		kill("TERM", $_->{pid});
+	}
+}
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchildren(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchildren(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchildren(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchildren(); exit; };
 
 sub checkrequest($) {
 	my $req = shift;
@@ -122,11 +130,44 @@ sub cleandir($$) {
 	}
 }
 
+sub readtapelist() {
+
+        printlog "reading tape hints from $conf{retriever_hintfile}" if $conf{verbose};
+
+	if(open my $tf, '<', $conf{retriever_hintfile}) {
+		my $out;
+		eval {
+			local $SIG{__WARN__} = sub {};
+			local $SIG{__DIE__} = sub {};
+
+			$out = decode_json(<$tf>);
+		};
+		if($@) {
+			warn "Parsing $conf{retriever_hintfile} as JSON failed: $@";
+			warn "Falling back to parse as old format, consider regenerating hint file in current JSON format";
+			seek($tf, 0, 0) || die "Unable to seek to beginning: $!";
+			while (<$tf>) {
+				chomp;
+				my ($id,$tape) = split /\s+/;
+				next unless defined $id && defined $tape;
+				$out->{$id}{volid} = $tape;
+			}
+
+		}
+		close($tf);
+		return $out;
+	}
+	else {
+		warn "open $conf{retriever_hintfile}: $?";
+		return undef;
+	}
+
+}
+
 my $tapelistmodtime=0;
 my $tapelist = {};
 my %reqset;
 my %lastmount;
-my @workers;
 
 my $desclong="";
 if($conf{'desc-long'}) {
@@ -141,22 +182,21 @@ cleandir("$conf{dir}/in", 30);
 while(1) {
 #	load/refresh tape list
 	if (exists $conf{retriever_hintfile}) {
-		my $tapefilename = $conf{retriever_hintfile};
-		my $newtapemodtime = (stat $tapefilename)[9];
+		my $newtapemodtime = (stat $conf{retriever_hintfile})[9];
 		if(defined $newtapemodtime) {
-			if ($newtapemodtime > $tapelistmodtime) {
-				my $newtapelist = Endit::readtapelist($tapefilename);
+			if($newtapemodtime > $tapelistmodtime) {
+				my $newtapelist = readtapelist();
 				if ($newtapelist) {
 					my $loadtype = "loaded";
 					if(scalar(keys(%{$tapelist}))) {
 						$loadtype = "reloaded";
 					}
-					printlog "Tape hint file $tapefilename ${loadtype}, " . scalar(keys(%{$newtapelist})) . " entries.";
+					printlog "Tape hint file $conf{retriever_hintfile} ${loadtype}, " . scalar(keys(%{$newtapelist})) . " entries.";
 
 					$tapelist = $newtapelist;
 					$tapelistmodtime = $newtapemodtime;
 				}
-			} 
+			}
 		} else {
 			printlog "Warning: retriever_hintfile set to $conf{retriever_hintfile}, but this file does not seem to exist";
 		}
@@ -223,7 +263,10 @@ while(1) {
 				my $reqinfo = {timestamp => $ts } if defined $ts;
 				if ($reqinfo) {
 					if (!exists $reqinfo->{tape}) {
-						if (my $tape = $tapelist->{$req}) {
+						if (my $tape = $tapelist->{$req}{volid}) {
+							# Ensure name contains
+							# no fs path characters
+							$tape=~tr/a-zA-Z0-9.-/_/cs;
 							$reqinfo->{tape} = $tape;
 						} else {
 							$reqinfo->{tape} = 'default';
@@ -300,21 +343,21 @@ while(1) {
 			}
 
 			my ($lf, $listfile) = tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0);
+			my %lfinfo;
 
-			my $lfentries = 0;
 			my $lfsize = 0;
-			my $lffiles = "";
-			$lffiles .= " files:" if($conf{verbose});
 			foreach my $name (keys %{$job->{$tape}}) {
 				my $reqinfo = checkrequest($name);
 				next unless($reqinfo);
 
 				print $lf "$conf{dir}/out/$name\n";
-				$lfentries ++;
 				if($reqinfo->{file_size}) {
+					$lfinfo{$name} = $reqinfo->{file_size};
 					$lfsize += $reqinfo->{file_size};
 				}
-				$lffiles .= " $name" if($conf{verbose});
+				else {
+					$lfinfo{$name} = -1;
+				}
 			}
 			close $lf or die "Closing $listfile failed: $!";
 
@@ -324,8 +367,12 @@ while(1) {
 			}
 			$lastmount{$tape} = time;
 
-			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
+			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), scalar(keys(%lfinfo)));
 			$lfstats .= ", oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
+			my $lffiles = "";
+			if($conf{verbose}) {
+				$lffiles .= join(" ", " files:", sort(keys(%lfinfo)));
+			}
 			printlog "Running worker on volume $tape ($lfstats)$lffiles";
 
 #			spawn worker
@@ -344,22 +391,84 @@ while(1) {
 				undef $tapelist;
 				undef $job;
 				@workers=();
+				my $dsmcpid;
+				sub killchild() {
+
+					if(defined($dsmcpid)) {
+						kill("TERM", $dsmcpid);
+					}
+				}
+
+				$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); killchild(); exit; };
+				$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); killchild(); exit; };
+				$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); killchild(); exit; };
+				$SIG{HUP} = sub { printlog("Got SIGHUP, exiting..."); killchild(); exit; };
+
 
 				# printlog():s in child gets the child pid
 				printlog "Trying to retrieve files from volume $tape using file list $listfile";
 
 				my $indir = $conf{dir} . '/in/';
-				my @dsmcopts = split /, /, $conf{'dsmcopts'};
+
+				# Check for incomplete leftovers of retrieved files
+				while(my($f, $s) = each(%lfinfo)) {
+					my $fn = "$indir/$f";
+					my $fsize = (stat($fn))[7];
+					if(defined($fsize) && $fsize != $s) {
+						printlog("On-disk file $fn size $fsize doesn't match request size $s, removing.") if($conf{verbose});
+						unlink($fn);
+					}
+				}
+				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
+				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
 				printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 				my $execstart = time();
-				my ($in,$out,$err);
-				$in="A\n";
-				if((run3 \@cmd, \$in, \$out, \$err) && $? == 0) {
+				my @out;
+				my @errmsgs;
+				my $usractionreq = 0;
+				my $dsmcfh;
+				if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
+					while(<$dsmcfh>) {
+						chomp;
+
+						# Catch error messages, only
+						# printed on non-zero return
+						# code from dsmc
+						if(/^AN\w\d\d\d\d\w/) {
+							push @errmsgs, $_;
+						}
+
+						# Detect and save interactive
+						# messages as error messages
+						if(/^--- User Action is Required ---$/) {
+							$usractionreq = 1;
+						}
+						if($usractionreq) {
+							push @errmsgs, $_;
+						}
+
+						# Save all output for verbose
+						# output
+						push @out, $_;
+
+						if(/^Action\s+\[.*\]\s+:/) {
+							printlog "dsmc prompt detected, aborting";
+							kill("TERM", $dsmcpid);
+							last;
+						}
+
+					}
+
+				}
+				if(!close($dsmcfh) && $!) {
+					warn "closing pipe from dsmc: $!";
+				}
+				if($? == 0) {
 					my $duration = time()-$execstart;
 					$duration = 1 unless($duration);
-					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), $lfentries);
-					my $speedstats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), $lfentries/$duration);
+					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), scalar(keys(%lfinfo)));
+					my $speedstats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), scalar(keys(%lfinfo))/$duration);
 					printlog "Retrieve operation from volume $tape successful, $sizestats took $duration seconds, average rate $speedstats";
 
 					# sleep to let requester remove requests
@@ -374,11 +483,16 @@ while(1) {
 						$msg .= sprintf "child died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
 					}
 					else {
-						$msg .= sprintf "child exited with value %d\n", $? >> 8;
+						$msg .= sprintf "child exited with value %d", $? >> 8;
 					}
 					printlog "$msg";
-					printlog "STDERR: $err";
-					printlog "STDOUT: $out";
+
+					foreach my $errmsg (@errmsgs) {
+						printlog "dsmc error message: $errmsg";
+					}
+					if($conf{verbose}) {
+						printlog "dsmc output: " . join("\n", @out);
+					}
 
 					# sleep to pace ourselves if these are
 					# persistent reoccurring failures

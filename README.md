@@ -9,9 +9,9 @@ ENDIT is comprised of an ENDIT dCache plugin and the ENDIT daemons.
 
 # Requirements
 
-At least the following Perl modules need to be installed:
+At least the following Perl module need to be installed:
 
-* JSON, IPC::Run3
+* JSON
 
 It is known to work on Perl >= 5.14, but notably 5.10 does not work.
 
@@ -73,6 +73,69 @@ After starting dcache you also need to start the three scripts:
 * tsmdeleter.pl
 
 See [startup/README.md](startup/README.md) for details/examples.
+
+To enable concurrent retrieves from multiple tapes you must use a tape hint
+file, a file that provides info on which tape volume files are stored.
+
+## Tape hint file
+
+The tape hint file name to be loaded by tsmretriever.pl is set using the
+retriever_hintfile specifier in the configuration file.
+
+This file can be generated either from the TSM server side or from the
+TSM client side using one of the provided scripts. Choose the one that
+works best in your environment.
+
+In general we recommend to run only one script per TSM proxy node name
+and distribute the resulting file to all affected hosts running ENDIT.
+Running multiple scripts works, but may put unnecessary strain on your
+TSM server database.
+
+Updating the file by running the script daily is recommended.
+
+### tsm_getvolumecontent.pl
+
+This method communicates with the TSM server. It has the following
+requirements:
+
+* The dsmadmc utility set up to communicate properly with the TSM
+  server.
+* A TSM server administrative user (no extra privilege needed).
+
+Benefits:
+
+* Volume names are the real tape volume names as used by TSM
+* Tests have shown this method to be approximately a factor 2 faster
+  than using tsmtapehints.pl
+
+Drawbacks:
+
+* More cumbersome to set up:
+  * Requires dsmadmc
+  * Requires close cooperation with TSM server admins due to admin user etc.
+  * Requires TSM admin user password in a clear-text file
+
+### tsmtapehints.pl
+
+This method runs together with the other ENDIT daemons and uses the dsmc
+command as specified by the ENDIT configuration file to list file
+information.
+
+Benefits:
+
+* Easier to set up:
+  * Uses the ENDIT configuration file
+  * Only needs periodic invocation (crontab, systemd timer)
+* Performs some sanity checking, in particular detection of duplicates
+  of archived files (multiple tape copies of the same file object)
+
+Drawbacks:
+
+* Volume names are numeric IDs, good enough to group files correctly but
+  not easily usable by a TSM admin to identify a specific tape volume in case
+  of issues.
+* Slower, tests have shown a factor of 2 slowdown compared to
+  tsm_getvolumecontents.pl
 
 # Multiple instances
 

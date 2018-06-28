@@ -19,7 +19,6 @@
 use warnings;
 use strict;
 
-use IPC::Run3;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
@@ -30,6 +29,9 @@ use lib dirname (__FILE__);
 use Endit qw(%conf readconf printlog getusage);
 
 $Endit::logsuffix = 'tsmarchiver.log';
+
+# Turn off output buffering
+$| = 1;
 
 readconf();
 
@@ -47,9 +49,18 @@ INIT {
         };
 }
 
-$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); exit; };
-$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); exit; };
-$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); exit; };
+my $dsmcpid;
+sub killchild() {
+
+	if(defined($dsmcpid)) {
+		kill("TERM", $dsmcpid);
+	}
+}
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
 
 my $desclong="";
 if($conf{'desc-long'}) {
@@ -116,7 +127,7 @@ while(1) {
 	print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 	close($fh) || die "Failed writing to $fn: $!";
 
-	my @dsmcopts = split /, /, $conf{'dsmcopts'};
+	my @dsmcopts = split(/, /, $conf{'dsmcopts'});
 	if(!$triggerthreshold && $conf{archiver_timeout_dsmcopts}) {
 		printlog "Adding archiver_timeout_dsmcopts " . $conf{archiver_timeout_dsmcopts} if($conf{debug});
 		push @dsmcopts, split(/, /, $conf{archiver_timeout_dsmcopts});
@@ -125,17 +136,42 @@ while(1) {
 		printlog "Adding ${triggerthreshold}_dsmcopts " . $conf{"${triggerthreshold}_dsmcopts"} if($conf{debug});
 		push @dsmcopts, split(/, /, $conf{"${triggerthreshold}_dsmcopts"});
 	}
+	my $now=strftime("%Y-%m-%dT%H:%M:%S%z",localtime());
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
-		"-description=endit","-filelist=$fn");
+		"-description=ENDIT-$now","-filelist=$fn");
 	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
 	my $execstart = time();
-	my ($out,$err);
-	if((run3 \@cmd, \undef, \$out, \$err) && $? ==0) { 
+
+	my $dsmcfh;
+	my @errmsgs;
+	my @out;
+	if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
+		while(<$dsmcfh>) {
+			chomp;
+
+			# Catch error messages, only printed on non-zero return
+			# code from dsmc
+			if(/^AN\w\d\d\d\d\w/) {
+				push @errmsgs, $_;
+				next;
+			}
+			# Save all output
+			push @out, $_;
+		}
+	}
+
+	if(!close($dsmcfh) && $!) {
+		warn "closing pipe from dsmc: $!";
+	}
+	$dsmcpid = undef;
+	if($? == 0) { 
 		my $duration = time()-$execstart;
 		$duration = 1 unless($duration);
 		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(@files)/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
-		printlog $out if $conf{'debug'};
+		if($conf{debug}) {
+			printlog "dsmc output: " . join("\n", @out);
+		}
 		# files migrated to tape without issue
 	} else {
 		# something went wrong. log and hope for better luck next time?
@@ -144,15 +180,20 @@ while(1) {
 			$msg .= "failed to execute: $!";
 		}
 		elsif ($? & 127) {
-			$msg .= sprintf "child died with signal %d, %s coredump",
+			$msg .= sprintf "dsmc died with signal %d, %s coredump",
 			       ($? & 127),  ($? & 128) ? 'with' : 'without';
 		}
 		else {
-			$msg .= sprintf "child exited with value %d\n", $? >> 8;
+			$msg .= sprintf "dsmc exited with value %d", $? >> 8;
 		}
 		printlog "$msg";
-		printlog "STDERR: $err";
-		printlog "STDOUT: $out";
+
+		foreach my $errmsg (@errmsgs) {
+			printlog "dsmc error message: $errmsg";
+		}
+		if($conf{verbose}) {
+			printlog "dsmc output: " . join("\n", @out);
+		}
 
 		# Avoid spinning on persistent errors.
 		sleep $conf{sleeptime};
