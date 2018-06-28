@@ -207,9 +207,10 @@ sub confdirsort {
 sub writesampleconf() {
 
 	my($fh, $fn) = tempfile("endit.conf.sample.XXXXXX", UNLINK=>0, TMPDIR=>1);
-	# tempfile() creates a file with private permissions, but we have no
-	# secrets in the sample file!
-	chmod(0644, $fn);
+
+	# File::Temp creates a file as private as possible. However, we want to
+	# have permissions in accordance to the user chosen umask.
+	chmod(0666 & ~umask(), $fn) || die "chmod $fn: $!";
 
 	print $fh "# ENDIT daemons sample configuration file.\n";
 	print $fh "# Generated on " . scalar(localtime(time())) . "\n";

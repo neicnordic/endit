@@ -145,6 +145,10 @@ print $tmpfh encode_json(\%files),"\n";
 $tmpfh->unlink_on_destroy(0);
 close $tmpfh || die "Closing $tmpf: $!";
 
+# File::Temp creates a file as private as possible. However, we want to
+# have permissions in accordance to the user chosen umask.
+chmod(0666 & ~umask(), $tmpf) || die "chmod $tmpf: $!";
+
 debug "Done. Renaming $tmpf to $opts{f}";
 rename($tmpf, $opts{f}) || die "Rename $tmpf to $opts{f}: $!";
 
