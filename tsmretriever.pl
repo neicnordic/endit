@@ -158,7 +158,7 @@ sub readtapelist() {
 		return $out;
 	}
 	else {
-		warn "open $conf{retriever_hintfile}: $?";
+		warn "open $conf{retriever_hintfile}: $!";
 		return undef;
 	}
 

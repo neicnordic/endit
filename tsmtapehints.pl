@@ -229,5 +229,10 @@ print $hftmp encode_json(\%hints),"\n";
 
 $hftmp->unlink_on_destroy(0);
 close($hftmp) || die "Writing $hintfiletmp: $!";
+
+# File::Temp creates a file as private as possible. However, we want to
+# have permissions in accordance to the user chosen umask.
+chmod(0666 & ~umask(), $hintfiletmp) || die "chmod $hintfiletmp: $!";
+
 rename($hintfiletmp, $hintfile) || die "rename $hintfiletmp $hintfile: $!";
 printlog "$hintfile updated (" . scalar(keys %hints) . " hints)";
