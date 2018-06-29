@@ -12,6 +12,7 @@ ENDIT is comprised of an ENDIT dCache plugin and the ENDIT daemons.
 At least the following Perl module need to be installed:
 
 * JSON
+* JSON::XS (highly recommended, approx 100 times faster parsing compared to pure-perl JSON)
 
 It is known to work on Perl >= 5.14, but notably 5.10 does not work.
 
