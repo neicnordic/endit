@@ -34,6 +34,8 @@ $| = 1;
 
 readconf();
 
+chdir('/') || die "chdir /: $!";
+
 my $filelist = "tsm-delete-files.XXXXXX";
 my $trashdir = "$conf{'dir'}/trash";
 my $dounlink = 1;

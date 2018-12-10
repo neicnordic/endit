@@ -35,6 +35,8 @@ $| = 1;
 
 readconf();
 
+chdir('/') || die "chdir /: $!";
+
 my $filelist = "tsm-archive-files.XXXXXX";
 
 # Try to send warn/die messages to log file
