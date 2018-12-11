@@ -9,7 +9,7 @@ ENDIT is comprised of an ENDIT dCache plugin and the ENDIT daemons.
 
 # Requirements
 
-At least the following Perl module need to be installed:
+At least the following Perl modules need to be installed:
 
 * JSON
 * JSON::XS (highly recommended, approx 100 times faster parsing compared to pure-perl JSON)
