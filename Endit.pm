@@ -137,7 +137,7 @@ my %confitems = (
 	},
 	archiver_threshold2_usage => {
 		example => 2000,
-		desc => "When exceeding this usage, in gigabytes, apply additonal dsmcopts.\nCommonly used to trigger usage of multiple tape sessions if one\nsession can't keep up. Recommended setting is somewhere between\ntwice the archiver_threshold1_usage and 20% of the total pool size.",
+		desc => "When exceeding this usage, in gigabytes, apply additional dsmcopts.\nCommonly used to trigger usage of multiple tape sessions if one\nsession can't keep up. Recommended setting is somewhere between\ntwice the archiver_threshold1_usage and 20% of the total pool size.",
 	},
 	archiver_threshold2_dsmcopts => {
 		example => "-resourceutilization=3",

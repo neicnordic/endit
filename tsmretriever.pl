@@ -35,6 +35,8 @@ $| = 1;
 
 readconf();
 
+chdir('/') || die "chdir /: $!";
+
 # Try to send warn/die messages to log file
 INIT {
         $SIG{__DIE__}=sub {
