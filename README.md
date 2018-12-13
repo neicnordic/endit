@@ -1,5 +1,7 @@
 # ENDIT - Efficient Northern Dcache Interface to TSM
 
+ENDIT daemons
+
 ## Concept
 
 Use the same filesystem as an HSM staging area, using hardlinks to "store"
@@ -9,12 +11,12 @@ ENDIT is comprised of an ENDIT dCache plugin and the ENDIT daemons.
 
 # Requirements
 
+The ENDIT daemons are known to work on Perl 5.10 onwards.
+
 At least the following Perl modules need to be installed:
 
 * JSON
 * JSON::XS (highly recommended, approx 100 times faster parsing compared to pure-perl JSON)
-
-It is known to work on Perl >= 5.14, but notably 5.10 does not work.
 
 # Installation and Configuration
 
