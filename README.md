@@ -30,16 +30,57 @@ https://wiki.neic.no/wiki/DCache_TSM_interface
 ## TSM (IBM Spectrum Protect)
 
 Setup TSM so that the user running dCache can `dsmc archive` and `dsmc
-retrieve` files. If you want to have several pool-nodes talking to tape, you
-probably want to setup a TSM proxy node that you can share across machines
-using `dsmc -asnode=NODENAME`.
+retrieve` files. If you want to have several pool-nodes talking to tape, we
+recommend setting up a TSM proxy node that you can share across machines
+using `dsmc -asnode=NODENAME`. Due to recent changes in TSM client authentication
+we strongly recommend not using a machine-global TSM node, but instead creating
+a dedicated TSM node for each dCache runtime user. See
+the [IBM documentation re non-root usage](https://www.ibm.com/support/knowledgecenter/en/SSEQVQ_8.1.6/client/c_cfg_nonadmin.html)
+for the recommended setup.
 
 A dCache hsminstance typically maps into a dedicated TSM proxy node. With a
 proxy node you can have multiple read and write pool nodes to the same data in
 TSM. Different TSM nodes need to have different hsminstances.
 
-Note that you need to increase the node `MAXNUMMP` setting to the sum of
-concurrent/parallel `dsmc archive` and `dsmc retrieve` sessions.
+The common ENDIT-optimized TSM storage hierarchy setup is to have a dedicated domain for each proxy node
+and define a tape storage pool as the archive copygroup destination. Since `tsmarchiver.pl`
+batches archive operations into larger chunks there is limited benefit of
+spooling data to disk on the TSM server before moving it to tape.
+
+For each TSM node defined on your TSM server, ensure that the following options are
+correct for your environment:
+* `MAXNUMMP` - Increase to the sum of concurrent/parallel `dsmc archive` and
+`dsmc retrieve` sessions plus some margin to avoid errors when tapes are concurrently
+being mounted/dismounted.
+* `SPLITLARGEObjects` - set to No to optimize for tape.
+
+On your TSM client machine (ie. dCache pool machine), ensure that you have set the appropriate tuning options for
+optimizing performance in a tape environment, see the [IBM documentation on Using high performance tape drives](https://www.ibm.com/support/knowledgecenter/SSGSG7_7.1.6/perf/c_srv_tape_drives_highperf.html) for further details.
+It is also recommended to define the `out` directory as a separate file system in TSM using the `VirtualMountPoint`
+configuration option.
+
+Typical `dsm.sys` excerpt:
+```
+TXNBYTELIMIT      10G
+VIRTUALMountpoint /grid/pool/out
+```
+
+We also recommend disabling ACL support as this is file system specific
+(as in you can't restore files to a different file system type) thus having
+it enabled makes it hard to change the setup in the future.
+
+Typical `dsm.opt` excerpt:
+```
+SKIPACL YES
+```
+
+If the machine is running scheduled TSM backups you want to exclude the pool filesystem(s) from the backup.
+
+Typical system `include-exclude` file excerpt:
+```
+exclude.dir     /grid/pool*/.../*
+exclude.fs      /grid/pool*/.../*
+```
 
 ## dCache
 
@@ -51,6 +92,9 @@ flushing.
 
 To get any efficiency in retrieves, you need to allow a large number of
 concurrent restores and have a long timeout for them.
+
+The configuration of the ENDIT dCache plugin is done through the dCache
+admin interface.
 
 ## ENDIT daemons
 
@@ -154,9 +198,6 @@ Drawbacks:
 To run multiple/concurrent ENDIT daemon instances, the `ENDIT_CONFIG` environment variable can be set
 to use a different configuration file. This is not to be confused with enabling parallel/multiple archive and
 retrieve operations which is done using options in the ENDIT daemon configuration file.
-
-The configuration of the ENDIT dCache plugin is done through the dCache
-admin interface.
 
 # Collaboration
 
