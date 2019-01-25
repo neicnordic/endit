@@ -102,9 +102,10 @@ Download the ENDIT daemons to a directory of your choice, `/opt/endit` is our
 suggestion. To make future upgrades easier we recommend to clone directly from the
 GitHub repository.
 
-Run one of the daemons (for example `tsmretriever.pl`) in order to generate
-a sample configuration file. This is only done when no config file is found,
-and is always written to a random file name shown in the output.
+Execute one of the daemons (for example `tsmretriever.pl`) once in order to generate
+a sample configuration file. When no configuration is found the ENDIT daemons will
+generate a sample file and write it to a random file name shown in the output, and
+then exit.
 
 Review the sample configuration, tune it to your needs and copy it to the
 location where ENDIT expects to find it (or use the `ENDIT_CONFIG` environment variable, see below).
@@ -195,9 +196,9 @@ Drawbacks:
 
 # Multiple instances
 
-To run multiple/concurrent ENDIT daemon instances, the `ENDIT_CONFIG` environment variable can be set
+To run multiple instances for different tape pools on one host, the `ENDIT_CONFIG` environment variable can be set
 to use a different configuration file. This is not to be confused with enabling parallel/multiple archive and
-retrieve operations which is done using options in the ENDIT daemon configuration file.
+retrieve operations for one pool which is done using options in the ENDIT daemon configuration file.
 
 # Collaboration
 
