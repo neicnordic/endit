@@ -29,17 +29,17 @@ https://wiki.neic.no/wiki/DCache_TSM_interface
 
 ## TSM (IBM Spectrum Protect)
 
-Setup TSM so that the user running dCache can "dsmc archive" and "dsmc
-retrieve" files. If you want to have several pool-nodes talking to tape, you
-probably want to setup a TSM proxy node that you can share accross machines
-using dsmc -asnode=NODENAME.
+Setup TSM so that the user running dCache can `dsmc archive` and `dsmc
+retrieve` files. If you want to have several pool-nodes talking to tape, you
+probably want to setup a TSM proxy node that you can share across machines
+using `dsmc -asnode=NODENAME`.
 
 A dCache hsminstance typically maps into a dedicated TSM proxy node. With a
 proxy node you can have multiple read and write pool nodes to the same data in
 TSM. Different TSM nodes need to have different hsminstances.
 
-Note that you need to increase the node MAXNUMMP setting to the sum of
-concurrent dsmc archive and retrieve sessions.
+Note that you need to increase the node `MAXNUMMP` setting to the sum of
+concurrent/parallel `dsmc archive` and `dsmc retrieve` sessions.
 
 ## dCache
 
@@ -54,26 +54,35 @@ concurrent restores and have a long timeout for them.
 
 ## ENDIT daemons
 
-Download the ENDIT daemons to a directory of your choice, /opt/endit is our
-suggestion.
+Download the ENDIT daemons to a directory of your choice, `/opt/endit` is our
+suggestion. To make future upgrades easier we recommend to clone directly from the
+GitHub repository.
 
-Run one of the daemons (for example tsmretriever.pl) in order to generate
+Run one of the daemons (for example `tsmretriever.pl`) in order to generate
 a sample configuration file. This is only done when no config file is found,
 and is always written to a random file name shown in the output.
 
 Review the sample configuration, tune it to your needs and copy it to the
-location where ENDIT expects to find it (or use the ENDIT_CONFIG environment variable, see below).
+location where ENDIT expects to find it (or use the `ENDIT_CONFIG` environment variable, see below).
 
-After installing, you need to create the directories "in", "out", "request",
-"requestlists" and "trash" in the same filesystem as the pool. ENDIT
+Starting from a generated sample configuration is highly recommended as it is the main
+documentation for the ENDIT daemon configuration file, and also contains an example on
+how to enable multiple session support for archiving and retrieving files. The
+multiple session archive support in `tsmarchiver.pl` adapts to the backlog, ie
+how much data needs to be stored to TSM, according to your configuration choices.
+The multiple session retrieve support in `tsmretriever.pl` requires a tape hint file,
+see below, that enables running multiple sessions each accessing a single tape.
+
+After installing, you need to create the directories `in`, `out`, `request`,
+`requestlists` and `trash` in the same filesystem as the pool. ENDIT
 daemons check the existence and permissions of needed directories on
 startup.
 
 After starting dcache you also need to start the three scripts:
 
-* tsmarchiver.pl
-* tsmretriever.pl
-* tsmdeleter.pl
+* `tsmarchiver.pl`
+* `tsmretriever.pl`
+* `tsmdeleter.pl`
 
 See [startup/README.md](startup/README.md) for details/examples.
 
@@ -82,8 +91,8 @@ file, a file that provides info on which tape volume files are stored.
 
 ## Tape hint file
 
-The tape hint file name to be loaded by tsmretriever.pl is set using the
-retriever_hintfile specifier in the configuration file.
+The tape hint file name to be loaded by `tsmretriever.pl` is set using the
+`retriever_hintfile` specifier in the configuration file.
 
 This file can be generated either from the TSM server side or from the
 TSM client side using one of the provided scripts. Choose the one that
@@ -96,12 +105,12 @@ TSM server database.
 
 Updating the file by running the script daily is recommended.
 
-### tsm_getvolumecontent.pl
+### `tsm_getvolumecontent.pl`
 
 This method communicates with the TSM server. It has the following
 requirements:
 
-* The dsmadmc utility set up to communicate properly with the TSM
+* The `dsmadmc` utility set up to communicate properly with the TSM
   server.
 * A TSM server administrative user (no extra privilege needed).
 
@@ -109,16 +118,16 @@ Benefits:
 
 * Volume names are the real tape volume names as used by TSM
 * Tests have shown this method to be approximately a factor 2 faster
-  than using tsmtapehints.pl
+  than using `tsmtapehints.pl`
 
 Drawbacks:
 
 * More cumbersome to set up:
-  * Requires dsmadmc
+  * Requires `dsmadmc`
   * Requires close cooperation with TSM server admins due to admin user etc.
   * Requires TSM admin user password in a clear-text file
 
-### tsmtapehints.pl
+### `tsmtapehints.pl`
 
 This method runs together with the other ENDIT daemons and uses the dsmc
 command as specified by the ENDIT configuration file to list file
@@ -138,19 +147,20 @@ Drawbacks:
   not easily usable by a TSM admin to identify a specific tape volume in case
   of issues.
 * Slower, tests have shown a factor of 2 slowdown compared to
-  tsm_getvolumecontents.pl
+  `tsm_getvolumecontents.pl`
 
 # Multiple instances
 
-To run multiple instances, the ENDIT_CONFIG environment variable can be set
-to use a different configuration file.
+To run multiple/concurrent ENDIT daemon instances, the `ENDIT_CONFIG` environment variable can be set
+to use a different configuration file. This is not to be confused with enabling parallel/multiple archive and
+retrieve operations which is done using options in the ENDIT daemon configuration file.
 
-The configuration of the endit-provider dCache plugin is done through the
+The configuration of the ENDIT dCache plugin is done through the dCache
 admin interface.
 
 # Collaboration
 
-It's all healthy perl, no icky surprises, I hope. Patches, suggestions, etc are
+It's all healthy perl, no icky surprises, we hope. Patches, suggestions, etc are
 most welcome.
 
 ## License
