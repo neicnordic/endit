@@ -114,7 +114,7 @@ foreach my $volume (@volumes) {
     my @t=dsm_cmd("q content $volume node=$opts{N} f=d") or die "Failed to query content on $volume";
     my $seqid = 0;
     foreach my $line (@t) {
-        my($nodename, $type, $fsname, $hexfsname, $fsid, $filename, $hexfilename, $isaggr, $size, $segment, $cached) = split (/\t/, $line);
+        my($nodename, $type, $fsname, $hexfsname, $fsid, $filename, $hexfilename, $isaggr, $size, $segment, $cached, $linked, $fragment) = split (/\t/, $line);
 
 	# Just skip ahead if no filename, likely means no files on volume!
 	next unless($filename);
