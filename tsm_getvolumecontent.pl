@@ -99,7 +99,7 @@ my @volumes;
 
 # List volumes in the storage pools
 foreach my $stgpool (sort @stgpools) {
-    my @t=dsm_cmd("q vol stg=$stgpool access=readwrite,readonly status=online,filling,full") or die "Failed listing vols for $stgpool";
+    my @t=dsm_cmd("q vol stg=$stgpool status=online,offline,filling,full") or die "Failed listing vols for $stgpool";
     foreach my $line (@t) {
         my($volname, undef, undef, undef, undef, undef) = split (/\t/, $line);
         push @volumes, $volname;
