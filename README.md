@@ -35,7 +35,7 @@ recommend setting up a TSM proxy node that you can share across machines
 using `dsmc -asnode=NODENAME`. Due to recent changes in TSM client authentication
 we strongly recommend not using a machine-global TSM node, but instead creating
 a dedicated TSM node for each dCache runtime user. See
-the [IBM documentation re non-root usage](https://www.ibm.com/support/knowledgecenter/en/SSEQVQ_8.1.6/client/c_cfg_nonadmin.html)
+the [IBM documentation re non-root usage](https://www.ibm.com/support/knowledgecenter/en/SSEQVQ_8.1.9/client/c_cfg_nonadmin.html)
 for the recommended setup.
 
 A dCache hsminstance typically maps into a dedicated TSM proxy node. With a
