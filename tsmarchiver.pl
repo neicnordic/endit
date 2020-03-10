@@ -26,7 +26,7 @@ use File::Basename;
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog getusage);
+use Endit qw(%conf readconf printlog);
 
 ###########
 # Variables
@@ -42,6 +42,25 @@ sub killchild() {
 		kill("TERM", $dsmcpid);
 	}
 }
+
+# Return filessystem usage (gigabytes)
+sub getusage($@) {
+        my $dir = shift;
+        my $size = 0;
+
+        printlog "Getting size of files in $dir: ". join(" ", @_) if($conf{debug});
+
+        while(my $file = shift) {
+                next unless(-e "$dir/$file");
+
+                $size += (stat _)[7];
+        }
+
+        printlog "Total size: $size bytes" if($conf{debug});
+
+        return $size/(1024*1024*1024); # GiB
+}
+
 
 
 #################

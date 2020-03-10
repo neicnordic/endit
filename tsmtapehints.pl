@@ -26,7 +26,7 @@ use File::Basename;
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);
-use Endit qw(%conf readconf printlog getusage);
+use Endit qw(%conf readconf printlog);
 
 $Endit::logsuffix = 'tsmtapehints.log';
 
