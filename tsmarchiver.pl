@@ -2,6 +2,7 @@
 
 #   ENDIT - Efficient Northern Dcache Interface to TSM
 #   Copyright (C) 2006-2017 Mattias Wadenstein <maswan@hpc2n.umu.se>
+#   Copyright (C) 2018-2020 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
