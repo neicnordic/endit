@@ -43,22 +43,40 @@ sub killchild() {
 	}
 }
 
-# Return filessystem usage (gigabytes)
-sub getusage($@) {
-        my $dir = shift;
+# Return filessystem usage (gigabytes) given a hash reference containing
+# contents and stat() size info
+sub getusage {
+	my ($href) = @_;
+
         my $size = 0;
 
-        printlog "Getting size of files in $dir: ". join(" ", @_) if($conf{debug});
+        while(my ($k, $v) = each %{$href}) {
 
-        while(my $file = shift) {
-                next unless(-e "$dir/$file");
-
-                $size += (stat _)[7];
+                $size += $v->{size}
         }
 
-        printlog "Total size: $size bytes" if($conf{debug});
-
         return $size/(1024*1024*1024); # GiB
+}
+
+
+# Get directory contents together with partial stat() info
+# Arguments:
+# $dir - directory name
+# $href - hash reference to return content in
+sub getdir {
+        my ($dir, $href) = @_;
+
+        opendir(my $dh, $dir) || die "opendir $dir: $!";
+
+        while(my $f = readdir($dh)) {
+                next unless $f =~ /^[0-9A-Fa-f]+$/;
+                my ($size, $mtime) = (stat("$dir/$f"))[7,9];
+                next unless $mtime;
+
+                $href->{$f}{size} = $size;
+                $href->{$f}{mtime} = $mtime;
+        }
+        closedir($dh);
 }
 
 
@@ -101,19 +119,20 @@ my $timer;
 while(1) {
 	my $dir = $conf{'dir'} . '/out/';
 
-        opendir(my $dh, $dir) || die "opendir $dir: $!";
-        my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($dh);
-        closedir($dh);
+	my %files;
+	getdir($dir, \%files);
 
-	if(!scalar(@files)) {
+	if(!scalar(%files)) {
 		# No files, just sleep until next iteration.
 		sleep($conf{sleeptime});
 		next;
 	}
 
-	my $usage = getusage($dir, @files);
+	my $usage = getusage(\%files);
 
-	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar(@files));
+	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar(%files));
+
+        printlog "Total size: $usagestr" if($conf{debug});
 
 	my $triggerthreshold;
 	# Assume threshold1_usage is smaller than threshold2_usage etc.
@@ -143,8 +162,11 @@ while(1) {
 
 	my $logstr = "Trying to archive $usagestr from $dir";
 
+	# Sort files oldest-first to preserve temporal affinity
+	my @fsorted = sort {$files{$a}{mtime} <=> $files{$b}{mtime}} keys %files;
+
 	if($conf{verbose}) {
-		$logstr .= " (files: " . join(" ", @files) . ")";
+		$logstr .= " (files: " . join(" ", @fsorted) . ")";
 	}
 
 	printlog $logstr;
@@ -153,8 +175,10 @@ while(1) {
 	my $dounlink = 1;
 	$dounlink=0 if($conf{debug});
 	my ($fh, $fn) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
-	print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
+	print $fh map { "$conf{'dir'}/out/$_\n"; } @fsorted;
 	close($fh) || die "Failed writing to $fn: $!";
+
+	@fsorted = undef; # Empty the sorted list, it's not needed anymore
 
 	my @dsmcopts = split(/, /, $conf{'dsmcopts'});
 	if(!$triggerthreshold && $conf{archiver_timeout_dsmcopts}) {
@@ -196,7 +220,7 @@ while(1) {
 	if($? == 0) { 
 		my $duration = time()-$execstart;
 		$duration = 1 unless($duration);
-		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(@files)/$duration);
+		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(%files)/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
 		if($conf{debug}) {
 			printlog "dsmc output: " . join("\n", @out);
