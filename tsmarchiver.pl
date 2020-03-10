@@ -117,6 +117,7 @@ if($conf{'desc-long'}) {
 printlog("$0: Starting$desclong...");
 
 my $timer;
+my $lastusagestr = "";
 while(1) {
 	my $dir = $conf{'dir'} . '/out/';
 
@@ -124,7 +125,7 @@ while(1) {
 	getdir($dir, \%files);
 
 	if(!scalar(%files)) {
-		# No files, just sleep until next iteration.
+		printlog "No files, sleeping for $conf{sleeptime} seconds" if($conf{debug});
 		sleep($conf{sleeptime});
 		next;
 	}
@@ -152,7 +153,10 @@ while(1) {
 			$timer = 0;
 		}
 		if($timer < $conf{archiver_timeout}) {
-			printlog "Only $usagestr used, sleeping a while (slept $timer s)" if($conf{debug});
+			if($conf{debug} || $conf{verbose} && $usagestr ne $lastusagestr) {
+				printlog "$usagestr below threshold, waiting for more data (waited $timer seconds)";
+			}
+			$lastusagestr = $usagestr;
 			sleep $conf{sleeptime};
 			$timer += $conf{sleeptime};
 			next;
@@ -160,6 +164,7 @@ while(1) {
 	}
 
 	$timer = undef;
+	$lastusagestr = "";
 
 	my $logstr = "Trying to archive $usagestr from $dir";
 
