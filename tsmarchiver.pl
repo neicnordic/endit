@@ -28,18 +28,27 @@ use lib dirname (__FILE__);
 
 use Endit qw(%conf readconf printlog getusage);
 
+###########
+# Variables
 $Endit::logsuffix = 'tsmarchiver.log';
-
-# Turn off output buffering
-$| = 1;
-
-readconf();
-
-chdir('/') || die "chdir /: $!";
-
 my $filelist = "tsm-archive-files.XXXXXX";
+my $dsmcpid;
 
-# Try to send warn/die messages to log file
+##################
+# Helper functions
+sub killchild() {
+
+	if(defined($dsmcpid)) {
+		kill("TERM", $dsmcpid);
+	}
+}
+
+
+#################
+# Implicit main()
+
+# Try to send warn/die messages to log file, this is run just before the Perl
+# runtime begins execution.
 INIT {
         $SIG{__DIE__}=sub {
                 printlog("DIE: $_[0]");
@@ -51,13 +60,12 @@ INIT {
         };
 }
 
-my $dsmcpid;
-sub killchild() {
+# Turn off output buffering
+$| = 1;
 
-	if(defined($dsmcpid)) {
-		kill("TERM", $dsmcpid);
-	}
-}
+readconf();
+
+chdir('/') || die "chdir /: $!";
 
 $SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
 $SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
