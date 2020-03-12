@@ -134,7 +134,8 @@ my %confitems = (
 		desc => "Require this usage before migrating to tape, in gigabytes.\nTune this to be 20-30 minutes or more of tape activity.",
 	},
 	archiver_threshold1_dsmcopts => {
-		desc => 'Extra dsmcopts for archiver_threshold1',
+		example => "-resourceutilization=2",
+		desc => "Number of tape mounts corresponds to ResourceUtilization - 1. Explicitly adding -resourceutilization=2 overrides any settings in dsmc config dsm.sys.",
 	},
 	archiver_threshold2_usage => {
 		example => 2000,
