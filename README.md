@@ -9,6 +9,9 @@ data and then use batch processes to archive and restore data to/from tape.
 
 ENDIT is comprised of an ENDIT dCache plugin and the ENDIT daemons.
 
+The IBM Spectrum Protect (TSM) client is used to perform the actual transfer
+of files to/from the tape system.
+
 # Requirements
 
 The ENDIT daemons are known to work on Perl 5.10 onwards.
@@ -17,6 +20,10 @@ At least the following Perl modules need to be installed:
 
 * JSON
 * JSON::XS (highly recommended, approx 100 times faster parsing compared to pure-perl JSON)
+
+A recent version of the IBM Spectrum Protect (TSM) client is recommended, as of this writing
+v8.1.11 due to [commit 796a02a](https://github.com/neicnordic/endit/commit/796a02a8996f0bc7934721c053f43e0543affedc)
+and [IBM APAR IT33143](https://www.ibm.com/support/pages/apar/IT33143).
 
 # Installation and Configuration
 
