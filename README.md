@@ -22,7 +22,7 @@ At least the following Perl modules need to be installed:
 * JSON::XS (highly recommended, approx 100 times faster parsing compared to pure-perl JSON)
 
 A recent version of the IBM Spectrum Protect (TSM) client is recommended, as of this writing
-v8.1.11 due to [commit 796a02a](https://github.com/neicnordic/endit/commit/796a02a8996f0bc7934721c053f43e0543affedc)
+v8.1.11 or later, due to [commit 796a02a](https://github.com/neicnordic/endit/commit/796a02a8996f0bc7934721c053f43e0543affedc)
 and [IBM APAR IT33143](https://www.ibm.com/support/pages/apar/IT33143).
 
 # Installation and Configuration
