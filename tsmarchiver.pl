@@ -124,7 +124,7 @@ while(1) {
 	my %files;
 	getdir($dir, \%files);
 
-	if(!scalar(%files)) {
+	if(!%files) {
 		printlog "No files, sleeping for $conf{sleeptime} seconds" if($conf{debug});
 		sleep($conf{sleeptime});
 		next;
@@ -132,7 +132,7 @@ while(1) {
 
 	my $usage = getusage(\%files);
 
-	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar(%files));
+	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar keys %files);
 
         printlog "Total size: $usagestr" if($conf{debug});
 
@@ -226,7 +226,7 @@ while(1) {
 	if($? == 0) { 
 		my $duration = time()-$execstart;
 		$duration = 1 unless($duration);
-		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(%files)/$duration);
+		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(keys(%files))/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
 		if($conf{debug}) {
 			printlog "dsmc output: " . join("\n", @out);
