@@ -34,6 +34,7 @@ use Endit qw(%conf readconf printlog);
 $Endit::logsuffix = 'tsmarchiver.log';
 my $filelist = "tsm-archive-files.XXXXXX";
 my $dsmcpid;
+my $skipdelays = 0; # Set by USR1 signal handler
 
 ##################
 # Helper functions
@@ -109,6 +110,7 @@ $SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
 $SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
 $SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
 $SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
+$SIG{USR1} = sub { $skipdelays = 1; };
 
 my $desclong="";
 if($conf{'desc-long'}) {
@@ -125,6 +127,7 @@ while(1) {
 	getdir($dir, \%files);
 
 	if(!%files) {
+		$skipdelays = 0; # Ignore irrelevant request by USR1 signal
 		printlog "No files, sleeping for $conf{sleeptime} seconds" if($conf{debug});
 		sleep($conf{sleeptime});
 		next;
@@ -152,7 +155,11 @@ while(1) {
 		if(!defined($timer)) {
 			$timer = 0;
 		}
-		if($timer < $conf{archiver_timeout}) {
+		if($skipdelays) {
+			$skipdelays = 0; # Reset state set by USR1 signal
+			printlog "$usagestr below threshold and only waited $timer seconds, but proceeding anyway as instructed by USR1 signal";
+		}
+		elsif($timer < $conf{archiver_timeout}) {
 			if($conf{debug} || $conf{verbose} && $usagestr ne $lastusagestr) {
 				printlog "$usagestr below threshold, waiting for more data (waited $timer seconds)";
 			}

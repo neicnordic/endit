@@ -207,6 +207,19 @@ To run multiple instances for different tape pools on one host, the `ENDIT_CONFI
 to use a different configuration file. This is not to be confused with enabling parallel/multiple archive and
 retrieve operations for one pool which is done using options in the ENDIT daemon configuration file.
 
+# Bypassing delays/threshold/timers when testing
+
+The ENDIT daemons are designed to avoid unnecessary tape mounts, and achieves
+this by employing various thresholds and timers as explained in the example
+configuration file.
+
+However, when doing functional tests or error recovery related to the tape
+system it can be really frustrating having to wait longer than
+necessary. For these situations it's suitable to use the `USR1` signal
+handling in the ENDIT daemons. In general, the `USR1` signal tells the
+daemons to disregard all timers and thresholds and perform any pending
+actions immediately.
+
 # Collaboration
 
 It's all healthy perl, no icky surprises, we hope. Patches, suggestions, etc are

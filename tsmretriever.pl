@@ -26,9 +26,13 @@ use File::Basename;
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);
+
 use Endit qw(%conf readconf printlog);
 
+###########
+# Variables
 $Endit::logsuffix = 'tsmretriever.log';
+my $skipdelays = 0; # Set by USR1 signal handler
 
 # Turn off output buffering
 $| = 1;
@@ -60,6 +64,7 @@ $SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchildren(); exit; };
 $SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchildren(); exit; };
 $SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchildren(); exit; };
 $SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchildren(); exit; };
+$SIG{USR1} = sub { $skipdelays = 1; };
 
 sub checkrequest($) {
 	my $req = shift;
@@ -335,13 +340,25 @@ while(1) {
 			}
 
 			if($tape ne 'default' && defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay}) {
-				printlog "Skipping volume $tape, last mounted at " . strftime("%Y-%m-%d %H:%M:%S",localtime($lastmount{$tape})) . " which is more recent than remountdelay $conf{retriever_remountdelay}s ago" if($conf{verbose});
-				next;
+				my $msg = "volume $tape, last mounted at " . strftime("%Y-%m-%d %H:%M:%S",localtime($lastmount{$tape})) . " which is more recent than remountdelay $conf{retriever_remountdelay}s ago";
+				if($skipdelays) {
+					printlog "Proceeding due to USR1 signal despite $msg";
+				}
+				else {
+					printlog "Skipping $msg" if($conf{verbose});
+					next;
+				}
 			}
 
 			if($tape ne 'default' && $job->{$tape}->{tsoldest} > time()-$conf{retriever_reqlistfillwaitmax} && $job->{$tape}->{tsnewest} > time()-$conf{retriever_reqlistfillwait}) {
-				printlog "Skipping volume $tape, request list $job->{$tape}->{listsize} entries and still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest})) if($conf{verbose});
-				next;
+				my $msg = "volume $tape, request list $job->{$tape}->{listsize} entries and still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
+				if($skipdelays) {
+					printlog "Proceeding due to USR1 signal despite $msg";
+				}
+				else {
+					printlog "Skipping $msg" if($conf{verbose});
+					next;
+				}
 			}
 
 			my ($lf, $listfile) = tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0);
@@ -507,4 +524,5 @@ while(1) {
 			}
 		}
 	}
+	$skipdelays = 0; # Reset state set by USR1 signal
 }
