@@ -20,6 +20,7 @@ At least the following Perl modules need to be installed:
 
 * JSON
 * JSON::XS (highly recommended, approx 100 times faster parsing compared to pure-perl JSON)
+* Schedule::Cron (optional, allows for crontab style specification of deletion queue processinginterval)
 
 A recent version of the IBM Spectrum Protect (TSM) client is recommended, as of this writing
 v8.1.11 or later, due to [commit 796a02a](https://github.com/neicnordic/endit/commit/796a02a8996f0bc7934721c053f43e0543affedc)
@@ -219,6 +220,31 @@ necessary. For these situations it's suitable to use the `USR1` signal
 handling in the ENDIT daemons. In general, the `USR1` signal tells the
 daemons to disregard all timers and thresholds and perform any pending
 actions immediately.
+
+# Migration and/or decommission
+
+When migrating ENDIT service to another host (typically when renewing
+hardware), ensure that pending operations have finished before shutting
+down ENDIT and the dCache pool.
+
+* Check the `trash/` and `trash/queue/` directories, they should both
+  contain no files.
+** If the `trash/` directory has files in it, the dCache pool is getting
+   deletion requests. Take actions to prevent this. tsmdeleter will
+   queue the deletion requests on the next iteration cycle (default
+   every minute).
+** If the `trash/queue/` directory has files in it, there are queued
+   deletion requests. Either wait until the queue is processed (default
+   once per month) or force queue processing by sending a `USR1` signal
+   to the `tsmdeleter.pl` process. Review the `tsmdeleter.log` for
+   progress and double-check the `trash/queue/` directory afterwards.
+* Check the `out/` directory, it should not contain any files.
+** If the `out/` directory has files in it, data is being staged to the
+   dCache  pool. Take actions to prevent this. Either wait until
+   tsmarchiver processes the staging queue (default up to 6 hours) or
+   force staging by sending a `USR1` signal to the `tsmarchiver.pl`
+   process. Review the `tsmarchiver.log` for progress and double-check
+   the `out/` directory afterwards.
 
 # Collaboration
 

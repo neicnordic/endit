@@ -187,6 +187,11 @@ my %confitems = (
 		desc => "Force start a worker after this long even if the request list for this volume is still filling up, seconds",
 	},
 
+	deleter_queueprocinterval => {
+		default => "monthly",
+		desc => 'Queue processing interval (hourly/daily/weekly/monthly or crontab style time definition ie "0 0 1 * *")',
+	},
+
 	verbose => {
 		default => 1,
 		desc => 'Enable verbose logging including processed files (1 to enable, 0 to disable)',

@@ -2,6 +2,7 @@
 
 #   ENDIT - Efficient Northern Dcache Interface to TSM
 #   Copyright (C) 2006-2017 Mattias Wadenstein <maswan@hpc2n.umu.se>
+#   Copyright (C) 2018-2021 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -22,39 +23,58 @@ use strict;
 use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
+use JSON;
+
+# Be flexible in handling Schedule::Cron presence.
+my $have_schedule_cron = eval
+{
+	# Silence errors
+	local $SIG{__WARN__} = sub {};
+	local $SIG{__DIE__} = sub {};
+
+	# use is really the same as require+import
+	require Schedule::Cron;
+	Schedule::Cron->import();
+	1;
+};
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 use Endit qw(%conf readconf printlog);
 
+
+###########
+# Variables
 $Endit::logsuffix = 'tsmdeleter.log';
-
-# Turn off output buffering
-$| = 1;
-
-readconf();
-
-chdir('/') || die "chdir /: $!";
-
 my $filelist = "tsm-delete-files.XXXXXX";
-my $trashdir = "$conf{'dir'}/trash";
+my ($trashdir, $queuedir);
 my $dounlink = 1;
-$dounlink=0 if($conf{debug});
-
-
-# Try to send warn/die messages to log file
-INIT {
-        $SIG{__DIE__}=sub {
-                printlog("DIE: $_[0]");
-        };
-
-        $SIG{__WARN__}=sub {
-                print STDERR "$_[0]";
-                printlog("WARN: $_[0]");
-        };
-}
-
 my $dsmcpid;
+my $needretry = 0;
+my $flushqueue = 0;
+
+# deleter_queueprocinterval shortcut mappings
+# crontab-style requires Schedule::Cron
+my %text2cron = (
+	minutely =>'* * * * *',
+	hourly =>  '0 * * * *',
+	daily =>   '0 0 * * *',
+	weekly =>   '0 0 * * 1',
+	monthly => '0 0 1 * *',
+);
+# fallback triggers when strftime() output changes
+my %text2fmt = (
+	minutely =>'%M',
+	hourly =>  '%H',
+	daily =>   '%d',
+	weekly =>   '%V',
+	monthly => '%m',
+);
+
+
+##################
+# Helper functions
+
 sub killchild() {
 
 	if(defined($dsmcpid)) {
@@ -62,55 +82,12 @@ sub killchild() {
 	}
 }
 
-$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
-$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
-$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
-$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
-
-sub monthdeleted {
-	my $month = shift;
-	my @files = @_;
-	my $ndel = unlink map { "$trashdir/$month/$_"; } @files;
-	if ( $ndel != @files ) {
-		printlog "Unlink of old files in $month failed: $!";
-	}
-	if(rmdir($trashdir . '/' . $month)) {
-		# done with this month!
-	} else {
-		printlog "Couldn't delete directory $month: $!";
-	}
-}
-
-
-sub havedeleted {
-	my @files = @_;
-	my $thismonth = strftime '%Y-%m', localtime;
-	my $tmdir = "$trashdir/$thismonth";
-
-	if(! -d $tmdir) {
-		if(!mkdir $tmdir) {
-			printlog "mkdir $tmdir failed: $!";
-			# No use in continuing, will just emit loads of errors
-			return;
-		}
-	}
-	foreach my $trf (@files) {
-		# Move processed trash-files, all files will be reprocessed
-		# again next month to ensure they really are deleted.
-		# There are corner cases to in dsmc where status is unknown
-		# so this is the easy solution to ensure deletion.
-		# FIXME: An optimization is to only reprocess those files
-		# which we aren't sure got deleted.
-
-		if(!rename("$trashdir/$trf", "$tmdir/$trf")) {
-			 printlog "rename $trashdir/$trf to $tmdir/$trf failed: $!";
-		}
-	}
-}
-
+# Performs dsmc delete of files in the specifiled filelist.
+# Returns: undef on success
+#          Listref of 0 or more successful deletions on (partial) failure
 sub rundelete {
-	my $filelist=shift;
-	my $reallybroken=0;
+	my ($filelist) = @_;
+
 	my($out, $err);
 	my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 	push @dsmcopts, split(/, /, $conf{'dsmcopts'});
@@ -128,7 +105,6 @@ sub rundelete {
 			# Catch error messages.
 			if(/^AN\w\d\d\d\d\w/) {
 				push @errmsgs, $_;
-				next;
 			}
 			# Save all output
 			push @out, $_;
@@ -141,25 +117,51 @@ sub rundelete {
 	$dsmcpid = undef;
 
 	if($? != 0) { 
-		# Some kind of problem occurred.
+		my $reallybroken=0;
+		my @deleted = ();
 
-		# Ignore known benign errors:
+		# Some kind of problem occurred. The dsmc return code
+		# is just mapped to the class of the error message, so
+		# we need to investigate the actual messages.
+
+		# Ignore known benign messages:
+		# - ANS1278W Virtual mount point 'filespace-name' is a file
+		#   system. It will be backed up as a file system.
+		# => benign config warning, you have a redundant
+		#    VIRTUALMOUNTPOINT entry in your dsm.sys.
+		# - ANS1898I ***** Processed count files *****
+		# => progress information
+
+		# These errors gives information when some/all files
+		# have already been deleted:
 		# - ANS1345E No objects on the server match object-name
 		# => file already deleted
 		# - ANS1302E No objects on server match query
 		# => all files already deleted
-		# - ANS1278W Virtual mount point 'filespace-name' is a file
-		#   system. It will be backed up as a file system.
-		# => irrelevant noise
-		# - ANS1898I ***** Processed count files *****
-		# => progress information
+
+		# FIXME: We only have positive feedback on files that are
+		# already deleted (ie nonexistant on server). We could
+		# check if the summary reported by dsmc adds up to our
+		# deletion file counts, ie dsmc output:
+		# Total number of objects deleted:              2
+		# Total number of objects failed:               4
 
 		foreach (@errmsgs) {
 			if(/^ANS1278W/ or /^ANS1898I/) {
 				next;
 			}
-			elsif(/^ANS1345E/ or /^ANS1302E/) {
-				printlog "File already deleted: $_" if $conf{'verbose'};
+			elsif(/^ANS1302E/) {
+				printlog "All files already deleted: $_" if $conf{'verbose'};
+			}
+			elsif(/^ANS1345E.*'(.*)'$/) {
+				my $s = $1;
+				$s =~ s _^.*/__;
+				push @deleted, $s;
+				printlog "File already deleted: $s" if $conf{'verbose'};
+			}
+			elsif(/^ANS1345E/) {
+				# Catch if we fail to parse partial deletion
+				warn "Failed to parse: $_";
 			}
 			else {
 				$reallybroken=1;
@@ -172,27 +174,235 @@ sub rundelete {
 				$msg .= "failed to execute: $!";
 			}
 			elsif ($? & 127) {
-				$msg .= sprintf "child died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
+				$msg .= sprintf "died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
 			}
 			else {
-				$msg .= sprintf "child exited with value %d", $? >> 8;
+				$msg .= sprintf "exited with value %d", $? >> 8;
 			}
 			printlog "$msg";
 			if($conf{verbose}) {
 				printlog "dsmc output: " . join("\n", @out);
 			}
+			else {
+				# At a minimum, log the errors!
+				printlog "dsmc errors: " . join("\n", @errmsgs);
+			}
+
+			# Return successful deletions, if any.
+			return \@deleted;
 		}
 	}
-	return $reallybroken;
+
+	return undef; # Success!
 }
 
-sub monthsago {
-	my $first = shift;
-	my $second = shift;
-	my ($fy,$fm) = split /-/,$first;
-	my ($sy,$sm) = split /-/,$second;
-	return ($fy-$sy)*12+$fm-$sm;
+
+# Add deletion requests to our queue, removing the request files which
+# signals the deletion as handled to the dCache ENDIT plugin.
+sub addtoqueue
+{
+	my @files = @_;
+
+	if(! -d $queuedir && !mkdir($queuedir)) {
+		die "mkdir $queuedir failed: $!";
+	}
+
+	my $fn;
+	do {
+		# Might have a corner case with a tight loop causing a file
+		# collision, so just handle that.
+		my $now = time();
+		$fn = "$queuedir/$now";
+		sleep(1) if(-f $fn);
+	} while(-f $fn);
+
+	open(my $fh, ">", $fn) or die "Failed to open $fn for writing: $!";
+
+	print $fh encode_json(\@files),"\n";
+
+	close($fh) or die "Failed closing $fn: $!";
+
+	my $debugdir = "$trashdir/debug";
+	if($conf{debug}) {
+		if(! -d $debugdir && !mkdir($debugdir)) {
+			die "mkdir $debugdir: $!";
+		}
+	}
+	foreach my $f (@files) {
+		next unless(-f "$trashdir/$f"); # Skip already deleted files
+
+		if($conf{debug}) {
+			rename("$trashdir/$f", "$debugdir/$f") or warn "Failed to move $f to $debugdir/ : $!";
+		}
+		else {
+			unlink("$trashdir/$f") or warn "Failed to unlink $f: $!";
+		}
+	}
+
+	my $logstr = "Queued " . scalar(@files) . " files for deletion";
+	if($conf{verbose}) {
+		$logstr .= " (files: " . join(" ", @files) . ")";
+	}
+	printlog $logstr;
 }
+
+# Check trash directory and add deletion requests to queue.
+sub checktrashdir
+{
+	opendir(my $td, $trashdir) || die "opendir $trashdir: $!";
+	my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($td);
+	closedir($td);
+
+	if (@files > 0) {
+		addtoqueue(@files);
+	}
+}
+
+# Process the queue of pending deletions.
+sub processqueue
+{
+	printlog "Processing deletion queue start" if($conf{debug});
+
+	opendir(my $td, $queuedir) || die "opendir $queuedir: $!";
+	my @qfiles = grep { /^[0-9]+$/ } readdir($td);
+	closedir($td);
+
+	my @files;
+
+	foreach my $qf (@qfiles) {
+                local $/; # slurp whole file
+		my $qfd;
+                if(!open $qfd, '<', "$queuedir/$qf") {
+			warn "Opening $queuedir/$qf: $!";
+			next;
+		}
+                my $json_text = <$qfd>;
+                my $qentries = decode_json($json_text);
+                close $qfd;
+		push @files, @{$qentries};
+		if($conf{debug}) {
+			printlog "Read " . scalar(@{$qentries}) . " entries from $queuedir/$qf";
+		}
+        }
+
+	printlog scalar(@files) . " files in deletion queue" if($conf{verbose});
+
+	# Do deletions and update @files to reflect files left to delete
+	if(@files) {
+		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
+		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
+		close($fh) || die "Failed writing to $filename: $!";
+
+		my $logstr = "Trying to delete " . scalar(@files) . " files";
+		if($conf{debug}) {
+			$logstr .= " using file list $filename";
+		}
+		if($conf{verbose}) {
+			$logstr .= " (files: " . join(" ", @files) . ")";
+		}
+		printlog $logstr;
+
+		my $partial = rundelete($filename);
+
+		if(!defined($partial)) {
+			# Success!
+			printlog "Successfully deleted " . scalar(@files) . " files";
+			@files = ();
+		}
+		elsif(@{$partial}) {
+			printlog "Partial success, deleted " . scalar(@{$partial}) . " of " . scalar(@files) . " files";
+
+			# Filter out the partial successes from @files
+			my %f;
+			@f{ @files } = ();
+			delete @f{ @{$partial} };
+			@files = keys %f;
+		}
+
+		unlink($filename) unless($conf{debug});
+	}
+
+	$needretry = scalar(@files);
+	# Add files that failed to delete back into queue
+	if(@files) {
+		addtoqueue(@files); # Will die() on error
+	}
+
+	# Remove old queue files
+	foreach my $qf (@qfiles) {
+                unlink "$queuedir/$qf";
+	}
+
+	printlog "Processing deletion queue done" if($conf{debug});
+
+	return 0;
+}
+
+# sleep-hook for Schedule::Cron, sleeps at most $conf{sleeptime} seconds
+# at a time.
+# We use this to drive our main loop iteration, both when using
+# Schedule::Cron and the while-loop fallback.
+sub cronsleep
+{
+	my ($time, $cron) = @_;
+
+	# Perform these actions on each iteration.
+	checktrashdir();
+
+	if($flushqueue) {
+		printlog "Flushing deletion queue as instructed by USR1 signal";
+		$flushqueue = 0;
+		processqueue();
+	}
+	elsif($needretry) {
+		processqueue();
+	}
+
+	# Don't sleep longer than our configured sleeptime.
+	if($time > $conf{sleeptime}) {
+		$time = $conf{sleeptime};
+	}
+
+	printlog "cronsleep() for $time seconds" if($conf{debug});
+
+	sleep($time);
+
+	return;
+}
+
+
+#################
+# Implicit main()
+
+# Try to send warn/die messages to log file, this is run just before the Perl
+# runtime begins execution.
+INIT {
+        $SIG{__DIE__}=sub {
+                printlog("DIE: $_[0]");
+        };
+
+        $SIG{__WARN__}=sub {
+                print STDERR "$_[0]";
+                printlog("WARN: $_[0]");
+        };
+}
+
+# Turn off output buffering
+$| = 1;
+
+readconf();
+$dounlink=0 if($conf{debug});
+$trashdir = "$conf{'dir'}/trash";
+$queuedir = "$trashdir/queue";
+
+chdir('/') || die "chdir /: $!";
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
+$SIG{USR1} = sub { $flushqueue = 1; };
+
 
 my $desclong="";
 if($conf{'desc-long'}) {
@@ -200,63 +410,73 @@ if($conf{'desc-long'}) {
 }
 printlog("$0: Starting$desclong...");
 
-while(1) {
-	opendir(my $td, $trashdir) || die "opendir $trashdir: $!";
-	my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($td);
-	closedir($td);
 
-	if (@files > 0) {
-		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
-		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
-		close($fh) || die "Failed writing to $filename: $!";
-
-		my $logstr = "Trying to delete " . scalar(@files) . " files from file list $filename";
-		if($conf{verbose}) {
-			$logstr .= " (files: " . join(" ", @files) . ")";
-		}
-		printlog $logstr;
-		$logstr = undef;
-
-		if(rundelete($filename)) {
-			# Have already warned in rundelete()
-		} else {
-			# Success
-			printlog "Successfully deleted " . scalar(@files) . " files from file list $filename";
-			havedeleted(@files);
-		}
-		unlink($filename) unless($conf{debug});
+# Basic sanity-checking of deleter_queueprocinterval argument
+my $crontime;
+if($conf{deleter_queueprocinterval} =~ /\s/) {
+	if(scalar(split/\s+/, $conf{deleter_queueprocinterval}) eq 5) {
+		$crontime = $conf{deleter_queueprocinterval};
 	}
-	my $thismonth = strftime '%Y-%m', localtime;
+}
+elsif($text2cron{$conf{deleter_queueprocinterval}}) {
+	$crontime = $text2cron{$conf{deleter_queueprocinterval}};
+}
+if(!$crontime) {
+	die "Bad config: deleter_queueprocinterval: $conf{deleter_queueprocinterval}";
+}
 
-	opendir(my $tm, $trashdir) || die "opendir $trashdir: $!";
-	my @olddirs = grep { /^[0-9]{4}-[0-9]{2}/ } readdir($tm);
-	closedir($tm);
-	foreach my $month (@olddirs) {
-		if(monthsago($thismonth,$month)>1) {
-			my $odh;
-			my $od = $trashdir . '/' . $month;
-			unless(opendir($odh, $od)) {
-				warn "opendir $od: $!";
-				next;
-			}
-			@files = grep { /^[0-9A-Fa-f]+$/ } readdir($odh);
-			closedir($odh);
-			if (@files > 0) {
-				my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
-				print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
-				close($fh) || die "Failed writing to $filename: $!";
-				printlog "Retrying month $month deletion of " . scalar(@files) . " files from file list $filename";
-				if(rundelete($filename)) {
-					# Have already warned in rundelete()
-				} else {
-					# Success
-					printlog "Successfully reprocessed month $month deletion of " . scalar(@files) . " files from file list $filename";
-					monthdeleted($month, @files);
-				}
-				unlink($filename) unless($conf{debug});
-			}
-		}
+my $skew = int(rand(60)); # Avoid executing exactly at second 0
+if($have_schedule_cron) {
+	my $cron = new Schedule::Cron( \&processqueue, 
+			{ sleep => \&cronsleep, nofork => 1, nostatus => 1 } );
+
+	# Strip quotes in case someone has been ambitious in the config
+	$crontime =~ s/^"//;
+	$crontime =~ s/"$//;
+
+	# Schedule::Cron has a 6th field for seconds, use this to avoid
+	# executing exactly at second 0.
+	$crontime .= " $skew";
+
+	printlog "Scheduling queue processing using $crontime" if($conf{debug});
+
+	my $next;
+	# Catch bad entries to give sane error message
+	eval {
+		$cron->add_entry($crontime);
+		$next = $cron->get_next_execution_time($crontime);
+	};
+	if($@) {
+		die "Bad config: deleter_queueprocinterval: $conf{deleter_queueprocinterval}";
 	}
 
-	sleep $conf{sleeptime};
+	if($conf{debug} || ($conf{verbose} && $next - time() > 3600)) {
+		printlog "Next deletion queue processing at " . scalar(localtime($next));
+	}
+
+	# Start scheduler and wait forever.
+	# Queueing of incoming requests and other housekeeping is done in
+	# cronsleep()
+	$cron->run();
+}
+else {
+	my $fmt = $text2fmt{$conf{deleter_queueprocinterval}};
+	if(!$fmt) {
+		warn "crontab style timespec requires Perl module Schedule::Cron";
+		die "Unable to handle deleter_queueprocinterval: $conf{deleter_queueprocinterval}";
+	}
+	my $t = strftime($fmt, localtime(time()-$skew));
+
+	# Fallback to while-loop if no scheduler
+	while(1) {
+		# Queueing of incoming requests and other housekeeping is done
+		# in cronsleep()
+		cronsleep $conf{sleeptime};
+
+		# Trigger queue processing when output from strftime() changes
+		if($t ne strftime($fmt, localtime(time()-$skew))) {
+			$t = strftime($fmt, localtime());
+			processqueue();
+		}
+	}
 }
