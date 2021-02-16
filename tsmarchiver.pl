@@ -212,7 +212,6 @@ while(1) {
 			# code from dsmc
 			if(/^AN\w\d\d\d\d\w/) {
 				push @errmsgs, $_;
-				next;
 			}
 			# Save all output
 			push @out, $_;
