@@ -263,6 +263,11 @@ sub processqueue
 {
 	printlog "Processing deletion queue start" if($conf{debug});
 
+	if(! -d $queuedir) {
+		printlog "No $queuedir directory, skipping" if($conf{debug});
+		return 0;
+	}
+
 	opendir(my $td, $queuedir) || die "opendir $queuedir: $!";
 	my @qfiles = grep { /^[0-9]+$/ } readdir($td);
 	closedir($td);
