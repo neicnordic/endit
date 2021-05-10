@@ -43,7 +43,7 @@ recommend setting up a TSM proxy node that you can share across machines
 using `dsmc -asnode=NODENAME`. Due to recent changes in TSM client authentication
 we strongly recommend not using a machine-global TSM node, but instead creating
 a dedicated TSM node for each dCache runtime user. See
-the [IBM documentation re non-root usage](https://www.ibm.com/support/knowledgecenter/en/SSEQVQ_8.1.9/client/c_cfg_nonadmin.html)
+the [IBM documentation re non-root usage](https://www.ibm.com/docs/en/spectrum-protect/8.1.12?topic=cspc-enable-non-root-users-manage-their-own-data)
 for the recommended setup.
 
 A dCache hsminstance typically maps into a dedicated TSM proxy node. With a
@@ -63,7 +63,7 @@ being mounted/dismounted.
 * `SPLITLARGEObjects` - set to No to optimize for tape.
 
 On your TSM client machine (ie. dCache pool machine), ensure that you have set the appropriate tuning options for
-optimizing performance in a tape environment, see the [IBM documentation on Using high performance tape drives](https://www.ibm.com/support/knowledgecenter/SSGSG7_7.1.6/perf/c_srv_tape_drives_highperf.html) for further details.
+optimizing performance in a tape environment, see the [IBM documentation on Using high performance tape drives](https://www.ibm.com/docs/en/tsm/7.1.6?topic=tuning-high-performance-tape-drives) for further details.
 It is also recommended to define the `out` directory as a separate file system in TSM using the `VirtualMountPoint`
 configuration option.
 
