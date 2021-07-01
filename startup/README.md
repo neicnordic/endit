@@ -8,9 +8,9 @@ These startup scripts can be used have ENDIT start on system boot.
 
 * cp systemd/endit* /etc/systemd/system/
 * Review /etc/systemd/system/endit-*.service:
-** Uncomment and set ENDIT_CONFIG to appropriate value if needed (default is /opt/endit/endit.conf)
-** Uncomment and set DSM_CONFIG to the per-user dsm.opt file
-** The above changes can of course also be managed as drop-in files in the matching /etc/systemd/system/endit-*.service.d/ directories if you want to separate upstream version files from your local modifications.
+  * Uncomment and set ENDIT_CONFIG to appropriate value if needed (default is /opt/endit/endit.conf)
+  * Uncomment and set DSM_CONFIG to the per-user dsm.opt file
+  * The above changes can of course also be managed as drop-in files in the matching /etc/systemd/system/endit-*.service.d/ directories if you want to separate upstream version files from your local modifications.
 * systemctl daemon-reload
 * systemctl enable endit.target
 
