@@ -1,12 +1,12 @@
 [Unit]
 Description=ENDIT archiver process
 Documentation=https://github.com/neicnordic/endit
-Requisite=dcache.service
-After=dcache.service
+After=network-online.target nss-lookup.target nss-user-lookup.target remote-fs.target
 
 [Service]
 Type=simple
 #Environment="ENDIT_CONFIG=/path/to/endit.conf"
+#Environment="DSM_CONFIG=/path/to/dsm.opt"
 ExecStart=/opt/endit/tsmarchiver.pl
 #Restart=on-failure
 User=dcache

@@ -1,8 +1,7 @@
 [Unit]
 Description=ENDIT running
 Documentation=https://github.com/neicnordic/endit
-Requisite=dcache.service
-After=dcache.service
+After=network-online.target nss-lookup.target nss-user-lookup.target remote-fs.target
 BindsTo=endit-archiver.service
 BindsTo=endit-deleter.service
 BindsTo=endit-retriever.service
