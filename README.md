@@ -229,22 +229,22 @@ down ENDIT and the dCache pool.
 
 * Check the `trash/` and `trash/queue/` directories, they should both
   contain no files.
-** If the `trash/` directory has files in it, the dCache pool is getting
-   deletion requests. Take actions to prevent this. tsmdeleter will
-   queue the deletion requests on the next iteration cycle (default
-   every minute).
-** If the `trash/queue/` directory has files in it, there are queued
-   deletion requests. Either wait until the queue is processed (default
-   once per month) or force queue processing by sending a `USR1` signal
-   to the `tsmdeleter.pl` process. Review the `tsmdeleter.log` for
-   progress and double-check the `trash/queue/` directory afterwards.
+  * If the `trash/` directory has files in it, the dCache pool is getting
+    deletion requests. Take actions to prevent this. tsmdeleter will
+    queue the deletion requests on the next iteration cycle (default
+    every minute).
+  * If the `trash/queue/` directory has files in it, there are queued
+    deletion requests. Either wait until the queue is processed (default
+    once per month) or force queue processing by sending a `USR1` signal
+    to the `tsmdeleter.pl` process. Review the `tsmdeleter.log` for
+    progress and double-check the `trash/queue/` directory afterwards.
 * Check the `out/` directory, it should not contain any files.
-** If the `out/` directory has files in it, data is being staged to the
-   dCache  pool. Take actions to prevent this. Either wait until
-   tsmarchiver processes the staging queue (default up to 6 hours) or
-   force staging by sending a `USR1` signal to the `tsmarchiver.pl`
-   process. Review the `tsmarchiver.log` for progress and double-check
-   the `out/` directory afterwards.
+  * If the `out/` directory has files in it, data is being staged to the
+    dCache  pool. Take actions to prevent this. Either wait until
+    tsmarchiver processes the staging queue (default up to 6 hours) or
+    force staging by sending a `USR1` signal to the `tsmarchiver.pl`
+    process. Review the `tsmarchiver.log` for progress and double-check
+    the `out/` directory afterwards.
 
 # Collaboration
 
