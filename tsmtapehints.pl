@@ -66,11 +66,19 @@ if($conf{'desc-long'}) {
 }
 printlog("$0: Starting$desclong...");
 
-if (!exists $conf{retriever_hintfile}) {
-	die "retriever_hintfile not configured, nothing to do!";
+my $hintfile;
+if(exists $conf{retriever_hintfile}) {
+	$hintfile = $conf{retriever_hintfile};
 }
 
-my $hintfile = $conf{retriever_hintfile};
+if($ENV{ENDIT_RETRIEVER_HINTFILE}) {
+	$hintfile = $ENV{ENDIT_RETRIEVER_HINTFILE};
+	warn "Overriding with env ENDIT_RETRIEVER_HINTFILE $hintfile";
+}
+
+if (!$hintfile) {
+	die "retriever_hintfile not configured, nothing to do!";
+}
 
 my $hftmp = File::Temp->new(TEMPLATE => "$hintfile.XXXXXX");
 my $hintfiletmp = $hftmp->filename;
