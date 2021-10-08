@@ -221,9 +221,6 @@ while(my($k, $v) = each %hints) {
 		delete($v->{duplicates});
 	}
 
-	if(defined($v->{size})) {
-		delete($v->{size});
-	}
 	if(defined($v->{timestamp})) {
 		delete($v->{timestamp});
 	}

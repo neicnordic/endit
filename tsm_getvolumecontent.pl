@@ -130,6 +130,7 @@ foreach my $volume (@volumes) {
         }
         $files{$filename}{volid} = $volume;
         $files{$filename}{order} = $seqid++; # Assumes q content outputs items in tape order
+        $files{$filename}{size} = tsmamount2bytes($size);
     }
     debug " Found " . scalar @t . " entries";
 }
