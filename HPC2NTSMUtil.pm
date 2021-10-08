@@ -1,5 +1,5 @@
 #   HPC2NTSMUtil - simplify using dsmadmc to interact with TSM server
-#   Copyright (C) 2012-2017 <Niklas.Edmundsson@hpc2n.umu.se>
+#   Copyright (C) 2012-2021 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -320,27 +320,32 @@ sub humanamount(@) {
 
 # Convert TSM human readable amount to bytes.
 # Example 11.46 GB -> 12305081303
+#         1,779.01 M -> 1865427189
+
 sub tsmamount2bytes(@) {
     my $str = shift;
 
     $str =~ s/,//g;
-    if($str =~ /([\d\.]+)\s+(.)B/) {
+    if($str =~ /([\d,\.]+)(\s+(\S*)|)/) {
         my $size = $1;
-        my $prefix = $2;
+        my $prefix = $3;
 
-        if($prefix eq "K") {
+        $size =~ s/,//g;
+        $prefix = "" unless($prefix);
+
+        if($prefix =~ /^K/i) {
             $size *= 1024;
         }
-        elsif($prefix eq "M") {
+        elsif($prefix =~ /^M/i) {
             $size *= 1024*1024;
         }
-        elsif($prefix eq "G") {
+        elsif($prefix =~ /^G/i) {
             $size *= 1024*1024*1024;
         }
-        elsif($prefix eq "T") {
+        elsif($prefix =~ /^T/i) {
             $size *= 1024*1024*1024*1024;
         }
-        elsif($prefix eq "P") {
+        elsif($prefix =~ /^P/i) {
             $size *= 1024*1024*1024*1024*1024;
         }
         $size = int($size);
