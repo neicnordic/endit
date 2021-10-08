@@ -16,14 +16,11 @@
 
 package HPC2NTSMUtil;
 
-# vim:ts=4:sw=4:et:
-
 use warnings;
 use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use Carp;
 use Time::Local;
-
 
 require Exporter;
 require AutoLoader;
@@ -77,10 +74,22 @@ sub dsm_cmd ($)
         # ANS8001I Return code 11.
         # ANS1043S Quotes are not matched
         # etc.
-        if(/^AN\S\d\d\d\d\S\s/) {
-            # Save to be able to print useful error if it is an error...
-            push @diag, $_;
-            next;
+
+        # To add insult to injury, the 'query mount' command prepends
+        # ALL output with ANR messages...
+        if($cmd =~ /^\s*q\S*\s+mo/i) {
+            if(/^(ANR8334I|ANR2034E)/) {
+                # Save as diagnostics
+                push @diag, $_;
+                next;
+            }
+        }
+        else {
+            if(/^AN\S\d\d\d\d\S\s/) {
+                # Save to be able to print useful error if it is an error...
+                push @diag, $_;
+                next;
+            }
         }
         push @result, $_;
     }
@@ -136,19 +145,11 @@ sub setauth {
     $password = $args{password};
 
     # Verify that the auth works, and that the server is alive.
-    my @srvstat = dsm_cmd("query status");
+    my @srvstat = dsm_cmd("select server_name from status");
     if(!@srvstat || !defined($srvstat[0])) {
         croak "Auth setup failed";
     }
-    # Use select instead, makes this less kludgy?
-    foreach(@srvstat) {
-        next if(/^storage.*management/i);
-        if(/^(\S+)/) {
-            return $1;
-        }
-    }
-
-    return "SETAUTH OK BUT FAILED TO GET SERVER NAME";
+    return $srvstat[0];
 }
 
 
@@ -356,3 +357,5 @@ sub tsmamount2bytes(@) {
     return undef;
 }
 1;
+
+# vim:ts=4:sw=4:et:
