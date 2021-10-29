@@ -87,6 +87,15 @@ my %confobsolete = (
 	remotedirs => 1,
 	pollinginterval => 1,
 	maxusage => 1,
+	archiver_threshold1_dsmcopts => 1,
+	archiver_threshold2_dsmcopts => 1,
+	archiver_threshold3_dsmcopts => 1,
+	archiver_threshold4_dsmcopts => 1,
+	archiver_threshold5_dsmcopts => 1,
+	archiver_threshold6_dsmcopts => 1,
+	archiver_threshold7_dsmcopts => 1,
+	archiver_threshold8_dsmcopts => 1,
+	archiver_threshold9_dsmcopts => 1,
 );
 
 my %confitems = (
@@ -131,36 +140,21 @@ my %confitems = (
 	archiver_threshold1_usage => {
 		default => 500,
 		example => 500,
-		desc => "Require this usage before migrating to tape, in gigabytes.\nTune this to be 20-30 minutes or more of tape activity.",
-	},
-	archiver_threshold1_dsmcopts => {
-		example => "-resourceutilization=2",
-		desc => "Number of tape mounts corresponds to ResourceUtilization - 1. Explicitly adding -resourceutilization=2 overrides any settings in dsmc config dsm.sys.",
+		desc => "Require this usage, in gigabytes, before migrating to tape using 1 session.\nTune this to be 20-30 minutes or more of tape activity.",
 	},
 	archiver_threshold2_usage => {
 		example => 2000,
-		desc => "When exceeding this usage, in gigabytes, apply additional dsmcopts.\nCommonly used to trigger usage of multiple tape sessions if one\nsession can't keep up. Recommended setting is somewhere between\ntwice the archiver_threshold1_usage and 20% of the total pool size.",
-	},
-	archiver_threshold2_dsmcopts => {
-		example => "-resourceutilization=3",
-		desc => "Number of tape mounts corresponds to ResourceUtilization - 1.\nNote: Node must have MAXNUMMP increased from default 1.",
+		desc => "When exceeding this usage, in gigabytes, use 2 sessions.\nThis is used to trigger an additional tape session if one\nsession can't keep up. Recommended setting is somewhere between\ntwice the archiver_threshold1_usage and 20% of the total pool size.",
 	},
 	archiver_threshold3_usage => {
-		desc => "Also archiver_threshold3 ... archiver_threshold9 available if needed.",
+		desc => "Also archiver_threshold3 ... archiver_threshold9 available if needed.\nThe number corresponds to the number of sessions spawned.",
 	},
-	archiver_threshold3_dsmcopts => {},
 	archiver_threshold4_usage => {},
-	archiver_threshold4_dsmcopts => {},
 	archiver_threshold5_usage => {},
-	archiver_threshold5_dsmcopts => {},
 	archiver_threshold6_usage => {},
-	archiver_threshold6_dsmcopts => {},
 	archiver_threshold7_usage => {},
-	archiver_threshold7_dsmcopts => {},
 	archiver_threshold8_usage => {},
-	archiver_threshold8_dsmcopts => {},
 	archiver_threshold9_usage => {},
-	archiver_threshold9_dsmcopts => {},
 	retriever_maxworkers => {
 		default => 1,
 		example => 3,

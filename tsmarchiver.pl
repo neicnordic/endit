@@ -20,7 +20,7 @@
 use warnings;
 use strict;
 
-use POSIX qw(strftime);
+use POSIX qw(strftime WNOHANG);
 use File::Temp qw /tempfile/;
 use File::Basename;
 
@@ -33,17 +33,19 @@ use Endit qw(%conf readconf printlog);
 # Variables
 $Endit::logsuffix = 'tsmarchiver.log';
 my $filelist = "tsm-archive-files.XXXXXX";
-my $dsmcpid;
 my $skipdelays = 0; # Set by USR1 signal handler
+my @workers;
+my $dsmcpid; # used by spawn_worker() signal handler
 
 ##################
 # Helper functions
-sub killchild() {
 
-	if(defined($dsmcpid)) {
-		kill("TERM", $dsmcpid);
-	}
+sub killchildren() {
+        foreach(@workers) {
+                kill("TERM", $_->{pid});
+        }
 }
+
 
 # Return filessystem usage (gigabytes) given a hash reference containing
 # contents and stat() size info
@@ -81,130 +83,38 @@ sub getdir {
         closedir($dh);
 }
 
+sub spawn_worker {
+	my($msg, $filelist, $description, $usage_gib, $numfiles) = @_;
 
+	my $pid = fork();
 
-#################
-# Implicit main()
+	die "cannot fork" unless defined $pid;
 
-# Try to send warn/die messages to log file, this is run just before the Perl
-# runtime begins execution.
-INIT {
-        $SIG{__DIE__}=sub {
-                printlog("DIE: $_[0]");
-        };
-
-        $SIG{__WARN__}=sub {
-                print STDERR "$_[0]";
-                printlog("WARN: $_[0]");
-        };
-}
-
-# Turn off output buffering
-$| = 1;
-
-readconf();
-
-chdir('/') || die "chdir /: $!";
-
-$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchild(); exit; };
-$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchild(); exit; };
-$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchild(); exit; };
-$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchild(); exit; };
-$SIG{USR1} = sub { $skipdelays = 1; };
-
-my $desclong="";
-if($conf{'desc-long'}) {
-	$desclong = " $conf{'desc-long'}";
-}
-printlog("$0: Starting$desclong...");
-
-my $timer;
-my $lastusagestr = "";
-while(1) {
-	my $dir = $conf{'dir'} . '/out/';
-
-	my %files;
-	getdir($dir, \%files);
-
-	if(!%files) {
-		$skipdelays = 0; # Ignore irrelevant request by USR1 signal
-		printlog "No files, sleeping for $conf{sleeptime} seconds" if($conf{debug});
-		sleep($conf{sleeptime});
-		next;
+	if($pid) {
+		# Parent process
+		return $pid;
 	}
 
-	my $usage = getusage(\%files);
+	# Child process
+	# printlog():s in child gets the child pid
 
-	my $usagestr = sprintf("%.03f GiB in %d files", $usage, scalar keys %files);
+	printlog $msg;
 
-        printlog "Total size: $usagestr" if($conf{debug});
-
-	my $triggerthreshold;
-	# Assume threshold1_usage is smaller than threshold2_usage etc.
-	for my $i (reverse(1 .. 9)) {
-		my $at = "archiver_threshold${i}";
-		next unless($conf{"${at}_usage"});
-
-		if($usage >= $conf{"${at}_usage"}) {
-			$triggerthreshold = $at;
-			printlog "$at triggers" if($conf{debug});
-			last;
-		}
-	}
-	if(!$triggerthreshold) {
-		if(!defined($timer)) {
-			$timer = 0;
-		}
-		if($skipdelays) {
-			$skipdelays = 0; # Reset state set by USR1 signal
-			printlog "$usagestr below threshold and only waited $timer seconds, but proceeding anyway as instructed by USR1 signal";
-		}
-		elsif($timer < $conf{archiver_timeout}) {
-			if($conf{debug} || $conf{verbose} && $usagestr ne $lastusagestr) {
-				printlog "$usagestr below threshold, waiting for more data (waited $timer seconds)";
-			}
-			$lastusagestr = $usagestr;
-			sleep $conf{sleeptime};
-			$timer += $conf{sleeptime};
-			next;
+	sub killchild() {
+		if(defined($dsmcpid)) {
+			kill("TERM", $dsmcpid);
 		}
 	}
 
-	$timer = undef;
-	$lastusagestr = "";
-
-	my $logstr = "Trying to archive $usagestr from $dir";
-
-	# Sort files oldest-first to preserve temporal affinity
-	my @fsorted = sort {$files{$a}{mtime} <=> $files{$b}{mtime}} keys %files;
-
-	if($conf{verbose}) {
-		$logstr .= " (files: " . join(" ", @fsorted) . ")";
-	}
-
-	printlog $logstr;
-	$logstr = undef;
-
-	my $dounlink = 1;
-	$dounlink=0 if($conf{debug});
-	my ($fh, $fn) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
-	print $fh map { "$conf{'dir'}/out/$_\n"; } @fsorted;
-	close($fh) || die "Failed writing to $fn: $!";
-
-	@fsorted = undef; # Empty the sorted list, it's not needed anymore
+	$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); killchild(); exit; };
+	$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); killchild(); exit; };
+	$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); killchild(); exit; };
+	$SIG{HUP} = sub { printlog("Got SIGHUP, exiting..."); killchild(); exit; };
 
 	my @dsmcopts = split(/, /, $conf{'dsmcopts'});
-	if(!$triggerthreshold && $conf{archiver_timeout_dsmcopts}) {
-		printlog "Adding archiver_timeout_dsmcopts " . $conf{archiver_timeout_dsmcopts} if($conf{debug});
-		push @dsmcopts, split(/, /, $conf{archiver_timeout_dsmcopts});
-	}
-	if($triggerthreshold && $conf{"${triggerthreshold}_dsmcopts"}) {
-		printlog "Adding ${triggerthreshold}_dsmcopts " . $conf{"${triggerthreshold}_dsmcopts"} if($conf{debug});
-		push @dsmcopts, split(/, /, $conf{"${triggerthreshold}_dsmcopts"});
-	}
-	my $now=strftime("%Y-%m-%dT%H:%M:%S%z",localtime());
+
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
-		"-description=ENDIT-$now","-filelist=$fn");
+		"-description=$description","-filelist=$filelist");
 	my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
 	printlog "Executing: $cmdstr" if($conf{debug});
 	my $execstart = time();
@@ -229,16 +139,16 @@ while(1) {
 	if(!close($dsmcfh) && $!) {
 		warn "closing pipe from dsmc: $!";
 	}
-	$dsmcpid = undef;
-	if($? == 0) { 
+	if($? == 0) {
 		my $duration = time()-$execstart;
 		$duration = 1 unless($duration);
-		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", $usage*1024/$duration, scalar(keys(%files))/$duration);
+		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", ${usage_gib}*1024/$duration, $numfiles/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
 		if($conf{debug}) {
 			printlog "dsmc output: " . join("\n", @out);
 		}
 		# files migrated to tape without issue
+		exit 0;
 	} else {
 		# something went wrong. log and hope for better luck next time?
 		my $msg = "dsmc archive failure: ";
@@ -263,6 +173,217 @@ while(1) {
 
 		# Avoid spinning on persistent errors.
 		sleep $conf{sleeptime};
+		exit 1;
 	}
-	unlink($fn) unless($conf{debug});
+
+	# Never reached
+}
+
+#################
+# Implicit main()
+
+# Try to send warn/die messages to log file, this is run just before the Perl
+# runtime begins execution.
+INIT {
+        $SIG{__DIE__}=sub {
+                printlog("DIE: $_[0]");
+        };
+
+        $SIG{__WARN__}=sub {
+                print STDERR "$_[0]";
+                printlog("WARN: $_[0]");
+        };
+}
+
+# Turn off output buffering
+$| = 1;
+
+readconf();
+
+chdir('/') || die "chdir /: $!";
+
+$SIG{INT} = sub { warn("Got SIGINT, exiting...\n"); killchildren(); exit; };
+$SIG{QUIT} = sub { warn("Got SIGQUIT, exiting...\n"); killchildren(); exit; };
+$SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchildren(); exit; };
+$SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchildren(); exit; };
+$SIG{USR1} = sub { $skipdelays = 1; };
+
+my $desclong="";
+if($conf{'desc-long'}) {
+	$desclong = " $conf{'desc-long'}";
+}
+printlog("$0: Starting$desclong...");
+
+my $timer;
+my $lastpendstr = "";
+my $outdir = $conf{'dir'} . '/out/';
+my $lastcheck = 0;
+
+while(1) {
+	my $sleeptime = $conf{sleeptime};
+
+	# Handle finished workers
+	if(@workers) {
+		$sleeptime = 1;
+		@workers = map {
+			my $w = $_;
+			my $wres = waitpid($w->{pid}, WNOHANG);
+			my $rc = $?;
+			if ($wres == $w->{pid}) {
+				# Child is done.
+				# Intentionally not caring about
+				# result codes.
+				$w->{pid} = undef;
+				# One or more workers finished, force check
+				$lastcheck = 0;
+			}
+			$w;
+		} @workers;
+		@workers = grep { $_->{pid} } @workers;
+	}
+
+	if($lastcheck + $conf{sleeptime} > time()) {
+		sleep($sleeptime);
+		next;
+	}
+
+	$lastcheck = time();
+	my $numworkers = scalar(@workers);
+
+	my %files;
+	getdir($outdir, \%files);
+
+	# Use current total usage for trigger thresholds, easier for humans
+	# to figure out what values to set.
+	my $allusage = getusage(\%files);
+	my $allusagestr = sprintf("%.03f GiB in %d files", $allusage, scalar keys %files);
+
+	# Filter out files currently being worked on
+	while (my $k = each %files) {
+		foreach my $w (@workers) {
+			delete $files{$k} if($w->{files}{$k});
+		}
+	}
+
+	if(!%files) {
+		$skipdelays = 0; # Ignore irrelevant request by USR1 signal
+		my $str = "No pending files";
+		if($numworkers) {
+			$str .= ", $numworkers workers processing $allusagestr";
+		}
+		$str .= ". Sleeping for $conf{sleeptime} seconds" if($conf{debug});
+		printlog $str if($conf{debug});
+		sleep($sleeptime);
+		next;
+	}
+
+	my $pending = getusage(\%files);
+	my $pendingstr = sprintf("%.03f GiB in %d files", $pending, scalar keys %files);
+
+	my $triggerlevel;
+	# Assume threshold1_usage is smaller than threshold2_usage etc.
+	for my $i (reverse(($numworkers+1) .. 9)) {
+		my $at = "archiver_threshold${i}";
+		next unless($conf{"${at}_usage"});
+
+		if($allusage >= $conf{"${at}_usage"}) {
+			$triggerlevel = $i;
+			printlog "$at triggers" if($conf{debug});
+			last;
+		}
+	}
+	if(!$triggerlevel) {
+		if(!defined($timer)) {
+			$timer = time();
+		}
+		my $elapsed = time() - $timer;
+		my $logstr = "$allusagestr total, $pendingstr pending worker assignment, $numworkers workers busy";
+
+		if($skipdelays) {
+			$skipdelays = 0; # Reset state set by USR1 signal
+			printlog "$allusagestr below next threshold and only waited $elapsed seconds, but proceeding anyway as instructed by USR1 signal";
+		}
+		elsif($numworkers == 0 && $elapsed < $conf{archiver_timeout}) {
+			if($conf{debug} || $conf{verbose} && $pendingstr ne $lastpendstr) {
+				my $timeleft = $conf{archiver_timeout} - $elapsed;
+				printlog "$logstr ($timeleft seconds until archiver_timeout)";
+			}
+			$lastpendstr = $pendingstr;
+			sleep $sleeptime;
+			next;
+		}
+		elsif($numworkers > 0) {
+			if($conf{debug} || $conf{verbose} && $pendingstr ne $lastpendstr) {
+				printlog $logstr;
+			}
+			$lastpendstr = $pendingstr;
+			sleep $sleeptime;
+			next;
+		}
+
+		# Trigger anyway
+		$triggerlevel = $numworkers + 1;
+	}
+
+	$timer = undef;
+	$lastpendstr = "";
+
+	my $tospawn = $triggerlevel - $numworkers;
+
+	if($conf{debug}) {
+		printlog "Workers running: $numworkers Trigger level: $triggerlevel Workers to spawn: $tospawn";
+	}
+
+	# Sort files oldest-first to preserve temporal affinity
+	my @fsorted = sort {$files{$a}{mtime} <=> $files{$b}{mtime}} keys %files;
+	# When spawning new workers, take the amount left to process by those
+	# already running into account so we don't push too much work on the
+	# worker we spawn now, causing uneven load balancing. The very naive
+	# approach of just looking at the current total seems to work out
+	# good enough...
+	# FIXME: Future improvement is to have more strict adherence to the
+	# temporal affinity and not split chunks with similar timestamps
+	# between tapes/workers as we might do now...
+	my $spawnsize = $allusage/$triggerlevel + 1;
+	while($tospawn--) {
+		my @myfsorted;
+		my $mytot = 0;
+
+		# Chomp off as much as we can chew...
+		while($mytot/(1024*1024*1024) <= $spawnsize) {
+			my $f = shift @fsorted;
+			last unless($f);
+			$mytot += $files{$f}{size};
+			push @myfsorted, $f;
+		}
+
+		$mytot /= (1024*1024*1024); # GiB
+
+		my $logstr = sprintf("Spawning worker #%d to archive %.03f GiB in %d files from $outdir", scalar(@workers)+1, $mytot, scalar(@myfsorted));
+		if($conf{verbose}) {
+			$logstr .= " (files: " . join(" ", @myfsorted) . ")";
+		}
+
+		my $dounlink = 1;
+		$dounlink=0 if($conf{debug});
+		my ($fh, $fn) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
+		print $fh map { "${outdir}$_\n"; } @myfsorted;
+		close($fh) || die "Failed writing to $fn: $!";
+
+		my $desc=strftime("ENDIT-%Y-%m-%dT%H:%M:%S%z",localtime());
+		my $pid = spawn_worker($logstr, $fn, $desc, $mytot, scalar(@myfsorted));
+		my %job;
+		$job{pid} = $pid;
+		$job{listfile} = $fn;
+		$job{usage} = $mytot;
+		my %myfiles;
+		foreach my $f (@myfsorted) {
+			$myfiles{$f} = $files{$f};
+		}
+		$job{files} = \%myfiles;
+		push @workers, \%job;
+
+		# Pace ourselves, and ensure unique description string.
+		sleep 2;
+	}
 }
