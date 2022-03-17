@@ -441,13 +441,14 @@ while(1) {
 				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
-				printlog "Executing: " . join(" ", @cmd) if($conf{debug});
+				my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
+				printlog "Executing: $cmdstr" if($conf{debug});
 				my $execstart = time();
 				my @out;
 				my @errmsgs;
 				my $usractionreq = 0;
 				my $dsmcfh;
-				if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
+				if($dsmcpid = open($dsmcfh, "-|", $cmdstr)) {
 					while(<$dsmcfh>) {
 						chomp;
 

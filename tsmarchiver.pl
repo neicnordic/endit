@@ -205,13 +205,14 @@ while(1) {
 	my $now=strftime("%Y-%m-%dT%H:%M:%S%z",localtime());
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
 		"-description=ENDIT-$now","-filelist=$fn");
-	printlog "Executing: " . join(" ", @cmd) if($conf{debug});
+	my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
+	printlog "Executing: $cmdstr" if($conf{debug});
 	my $execstart = time();
 
 	my $dsmcfh;
 	my @errmsgs;
 	my @out;
-	if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
+	if($dsmcpid = open($dsmcfh, "-|", $cmdstr)) {
 		while(<$dsmcfh>) {
 			chomp;
 

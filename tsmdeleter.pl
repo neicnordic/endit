@@ -93,12 +93,13 @@ sub rundelete {
 	push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 	my @cmd = ('dsmc','delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
-        printlog "Executing: " . join(" ", @cmd) if($conf{debug});
+	my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
+	printlog "Executing: $cmdstr" if($conf{debug});
 
 	my $dsmcfh;
 	my @errmsgs;
 	my @out;
-	if($dsmcpid = open($dsmcfh, "-|", @cmd)) {
+	if($dsmcpid = open($dsmcfh, "-|", $cmdstr)) {
 		while(<$dsmcfh>) {
 			chomp;
 

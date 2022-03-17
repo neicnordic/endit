@@ -87,10 +87,11 @@ my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 my $outdir = "$conf{dir}/out";
 my @cmd = ('dsmc','query','archive','-filesonly','-detail',@dsmcopts,"$outdir/*");
+my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
 
-printlog "Executing: " . join(" ", @cmd) if($conf{debug});
+printlog "Executing: $cmdstr" if($conf{debug});
 
-$dsmcpid = open(my $dsmcfh, "-|", @cmd) || die "can't start dsmc: $!";
+$dsmcpid = open(my $dsmcfh, "-|", $cmdstr) || die "can't start dsmc: $!";
 
 my %tapelist;
 
