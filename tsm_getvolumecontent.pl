@@ -84,21 +84,18 @@ $opts{N} = "\U$opts{N}";
 debug "Node: $opts{N}";
 
 
-# Find out which storagepools are used by the node.
+# Find out which storagepools are used by the node (ie have data).
 my @stgpools = dsm_cmd("select distinct STGPOOL_NAME from occupancy where node_name='$opts{N}'") or die "Couldn't list stgpools for node $opts{N}";
 
-if(! @stgpools) {
-	die "No stgpools found for node $opts{N}";
-}
-
 foreach(@stgpools) {
-	debug "stgpool: $_";
+	debug "stgpool: '$_'";
 }
 
 my @volumes;
 
 # List volumes in the storage pools
 foreach my $stgpool (sort @stgpools) {
+    next unless($stgpool);
     my @t=dsm_cmd("q vol stg=$stgpool status=online,offline,filling,full") or die "Failed listing vols for $stgpool";
     foreach my $line (@t) {
         my($volname, undef, undef, undef, undef, undef) = split (/\t/, $line);

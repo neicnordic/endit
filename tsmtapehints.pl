@@ -115,6 +115,10 @@ my %tapelist;
 #          Modified: 2016-04-01 01:52:11  Accessed: 2016-04-01 01:05:51  Inode changed: 2016-04-01 01:59:24
 #          Compression Type: None  Encryption Type:        None  Client-deduplicated: NO
 #   Media Class: Library  Volume ID: 724216  Restore Order: 00000000-00000002-00000000-00CEF5A1
+#
+# Alternatively, if no files are stored on server:
+# ANS1092W No files matching search criteria were found
+# Also, dsmc exits with return code 8.
 # --------------
 
 my ($lastfile, $size, $timestamp);
@@ -195,13 +199,23 @@ elsif($? != 0) {
 		$msg .= sprintf "dsmc died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
 	}
 	else {
-		$msg .= sprintf "dsmc exited with value %d", $? >> 8;
+		my $rc = $? >> 8;
+		if($rc == 8 && scalar(@errmsgs) == 1 && $errmsgs[0] =~ /^ANS1092W/)
+		{
+			# No files stored (yet), don't get too upset.
+			$msg = undef;
+		}
+		else {
+			$msg .= sprintf "dsmc exited with value %d", $rc;
+		}
 	}
-	foreach my $errmsg (@errmsgs) {
-		warn "dsmc error message: $errmsg";
-	}
+	if($msg) {
+		foreach my $errmsg (@errmsgs) {
+			warn "dsmc error message: $errmsg";
+		}
 
-	die "$msg, aborting...";
+		die "$msg, aborting...";
+	}
 }
 
 $dsmcpid = undef;
