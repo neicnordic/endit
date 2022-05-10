@@ -182,8 +182,9 @@ if($conf{'desc-long'}) {
 }
 printlog("$0: Starting$desclong...");
 
-# Clean up stale indir remnants left by earlier crashes/restarts
+# Clean up stale remnants left by earlier crashes/restarts
 cleandir("$conf{dir}/in", 30);
+cleandir("$conf{dir}/requestlists", 30);
 
 # Warning: Infinite loop. Program may not stop.
 while(1) {
