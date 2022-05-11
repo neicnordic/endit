@@ -114,7 +114,12 @@ sub cleandir($$) {
 	my $maxage = time() - $maxagedays*86400;
 
 	opendir(my $rd, $dir) || die "opendir $dir: $!";
-	my (@files) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
+
+	# Only process files matching:
+	# - pNFS IDs
+	# - Temporary file names created by us
+	my (@files) = grep { /^([0-9A-Fa-f]+|.*?\..{6})$/ } readdir($rd);
+
 	closedir($rd);
 
 	return unless(@files);
@@ -128,7 +133,7 @@ sub cleandir($$) {
 			next;
 		}
 
-		if($mtime < $maxage && $ctime < $maxage) {
+		if($mtime < $maxage) {
 			printlog "File $fn mtime $mtime ctime $ctime is stale, removing";
 			if(!unlink($fn)) {
 				printlog "unlink file $fn failed: $!";
