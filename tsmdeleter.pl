@@ -296,7 +296,7 @@ sub processqueue
 	# Do deletions and update @files to reflect files left to delete
 	if(@files) {
 		my ($fh, $filename) = tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink);
-		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
+		print $fh map { "$conf{dir}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
 
 		my $logstr = "Trying to delete " . scalar(@files) . " files";
@@ -398,7 +398,7 @@ $| = 1;
 
 readconf();
 $dounlink=0 if($conf{debug});
-$trashdir = "$conf{'dir'}/trash";
+$trashdir = "$conf{dir}/trash";
 $queuedir = "$trashdir/queue";
 
 chdir('/') || die "chdir /: $!";

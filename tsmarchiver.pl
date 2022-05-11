@@ -216,7 +216,7 @@ printlog("$0: Starting$desclong...");
 
 my $timer;
 my $lastpendstr = "";
-my $outdir = $conf{'dir'} . '/out/';
+my $outdir = $conf{dir} . '/out/';
 my $lastcheck = 0;
 
 while(1) {

@@ -68,7 +68,7 @@ $SIG{USR1} = sub { $skipdelays = 1; };
 
 sub checkrequest($) {
 	my $req = shift;
-	my $req_filename = $conf{'dir'} . '/request/' . $req;
+	my $req_filename = $conf{dir} . '/request/' . $req;
 	my $state;
 
 	{
@@ -87,7 +87,7 @@ sub checkrequest($) {
 		return undef;
 	}
 
-	my $in_filename = $conf{'dir'} . '/in/' . $req;
+	my $in_filename = $conf{dir} . '/in/' . $req;
 	my $in_filesize=(stat $in_filename)[7];
 	if(defined($in_filesize) && defined($state->{file_size}) && $in_filesize == $state->{file_size}) {
 		printlog "Not doing $req due to file of correct size already present" if $conf{'verbose'};
