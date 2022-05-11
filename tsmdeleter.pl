@@ -295,7 +295,7 @@ sub processqueue
 
 	# Do deletions and update @files to reflect files left to delete
 	if(@files) {
-		my ($fh, $filename) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
+		my ($fh, $filename) = tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink);
 		print $fh map { "$conf{'dir'}/out/$_\n"; } @files;
 		close($fh) || die "Failed writing to $filename: $!";
 

@@ -366,7 +366,7 @@ while(1) {
 
 		my $dounlink = 1;
 		$dounlink=0 if($conf{debug});
-		my ($fh, $fn) = tempfile($filelist, DIR=>$conf{'dir'}, UNLINK=>$dounlink);
+		my ($fh, $fn) = tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink);
 		print $fh map { "${outdir}$_\n"; } @myfsorted;
 		close($fh) || die "Failed writing to $fn: $!";
 
