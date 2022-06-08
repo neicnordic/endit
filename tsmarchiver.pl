@@ -215,7 +215,7 @@ if($conf{'desc-long'}) {
 printlog("$0: Starting$desclong...");
 
 my $timer;
-my $lastpendstr = "";
+my $laststatestr = "";
 my $outdir = $conf{dir} . '/out/';
 my $lastcheck = 0;
 
@@ -279,6 +279,8 @@ while(1) {
 
 	my $pending = getusage(\%files);
 	my $pendingstr = sprintf("%.03f GiB in %d files", $pending, scalar keys %files);
+	# Include number of workers and current hour in state string.
+	my $statestr = "$pendingstr $numworkers " . (localtime(time()))[2];
 
 	my $triggerlevel;
 	# Assume threshold1_usage is smaller than threshold2_usage etc.
@@ -304,19 +306,19 @@ while(1) {
 			printlog "$allusagestr below next threshold and only waited $elapsed seconds, but proceeding anyway as instructed by USR1 signal";
 		}
 		elsif($numworkers == 0 && $elapsed < $conf{archiver_timeout}) {
-			if($conf{debug} || $conf{verbose} && $pendingstr ne $lastpendstr) {
+			if($conf{debug} || $conf{verbose} && $statestr ne $laststatestr) {
 				my $timeleft = $conf{archiver_timeout} - $elapsed;
 				printlog "$logstr ($timeleft seconds until archiver_timeout)";
 			}
-			$lastpendstr = $pendingstr;
+			$laststatestr = $statestr;
 			sleep $sleeptime;
 			next;
 		}
 		elsif($numworkers > 0) {
-			if($conf{debug} || $conf{verbose} && $pendingstr ne $lastpendstr) {
+			if($conf{debug} || $conf{verbose} && $statestr ne $laststatestr) {
 				printlog $logstr;
 			}
-			$lastpendstr = $pendingstr;
+			$laststatestr = $statestr;
 			sleep $sleeptime;
 			next;
 		}
@@ -326,7 +328,7 @@ while(1) {
 	}
 
 	$timer = undef;
-	$lastpendstr = "";
+	$laststatestr = "";
 
 	my $tospawn = $triggerlevel - $numworkers;
 
