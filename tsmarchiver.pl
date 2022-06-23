@@ -292,7 +292,7 @@ while(1) {
 			# Ensure that we only spawn a new worker when there
 			# is a large enough chunk to work on. Use the
 			# threshold 1 setting for that.
-			if($pending > conf{'archiver_threshold1_usage'}) {
+			if($pending > $conf{'archiver_threshold1_usage'}) {
 				$triggerlevel = $i;
 				printlog "$at triggers" if($conf{debug});
 				last;
