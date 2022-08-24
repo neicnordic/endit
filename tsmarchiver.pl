@@ -218,6 +218,8 @@ my $timer;
 my $laststatestr = "";
 my $outdir = $conf{dir} . '/out/';
 my $lastcheck = 0;
+my $lasttrigger = 0;
+$conf{"archiver_threshold0_usage"} = 0; # Quirk to avoid code duplication when ramping down workers.
 
 while(1) {
 	my $sleeptime = $conf{sleeptime};
@@ -256,7 +258,7 @@ while(1) {
 	# Use current total usage for trigger thresholds, easier for humans
 	# to figure out what values to set.
 	my $allusage = getusage(\%files);
-	my $allusagestr = sprintf("%.03f GiB in %d files", $allusage, scalar keys %files);
+	my $allusagestr = sprintf("%.03f GiB in %d file%s", $allusage, scalar keys %files, (scalar keys %files)==1?"":"s");
 
 	# Filter out files currently being worked on
 	while (my $k = each %files) {
@@ -265,53 +267,93 @@ while(1) {
 		}
 	}
 
-	if(!%files) {
-		$skipdelays = 0; # Ignore irrelevant request by USR1 signal
-		my $str = "No pending files";
-		if($numworkers) {
-			$str .= ", $numworkers workers processing $allusagestr";
-		}
-		$str .= ". Sleeping for $conf{sleeptime} seconds" if($conf{debug});
-		printlog $str if($conf{debug});
-		sleep($sleeptime);
-		next;
-	}
-
 	my $pending = getusage(\%files);
-	my $pendingstr = sprintf("%.03f GiB in %d files", $pending, scalar keys %files);
+	my $pendingstr = sprintf("%.03f GiB in %d file%s", $pending, scalar keys %files, (scalar keys %files)==1?"":"s");
 	# Include number of workers and current hour in state string.
-	my $statestr = "$pendingstr $numworkers " . (localtime(time()))[2];
+	my $statestr = "$allusagestr $pendingstr $numworkers " . (localtime(time()))[2];
 
 	my $triggerlevel;
+	my $usagelevel = 0;
+	my $nextulevel = 9999; # instead of messing with undef in arithmetics
+	my $minlevel = 1;
+	if($lasttrigger) {
+		$minlevel = 0;
+	}
 	# Assume threshold1_usage is smaller than threshold2_usage etc.
-	for my $i (reverse(($numworkers+1) .. 9)) {
+	for my $i (reverse($minlevel .. 9)) {
 		my $at = "archiver_threshold${i}";
-		next unless($conf{"${at}_usage"});
 
-		if($allusage >= $conf{"${at}_usage"}) {
-			# Ensure that we only spawn a new worker when there
-			# is a large enough chunk to work on. Use the
-			# threshold 1 setting for that.
-			if($pending > $conf{'archiver_threshold1_usage'}) {
-				$triggerlevel = $i;
-				printlog "$at triggers" if($conf{debug});
-				last;
+		# There might be gaps in the threshold definitions, so this gets a bit convoluted.
+		next unless(defined($conf{"${at}_usage"}));
+
+		if($allusage > $conf{"${at}_usage"}) {
+			$usagelevel = $i;
+			# Trigger either when at a higher level than the number of workers, or when
+			# we're between the last trigger threshold and the next lower threshold.
+			if($i > $numworkers || ($nextulevel == $lasttrigger && $lasttrigger > $numworkers)) {
+				# Ensure that we only spawn an additional worker when
+				# there is a large enough chunk to work on. Use the
+				# threshold 1 setting for that.
+				# The exception is when we're already at this number of
+				# workers but one or more has just exited, then we assume
+				# tape(s) are already mounted and cheap to continue using.
+				if($pending > $conf{'archiver_threshold1_usage'} || $lasttrigger >= $i) {
+					# Don't go lower than our previous trigger level
+					if($lasttrigger && $i < $lasttrigger) {
+						$triggerlevel = $lasttrigger;
+					} else {
+						$triggerlevel = $i;
+					}
+					printlog "$at triggers (usagelevel: $usagelevel, triggerlevel: $triggerlevel, lasttrigger: $lasttrigger)" if($conf{debug});
+				}
+				else {
+					printlog "$at triggers but pending $pending below archiver_threshold1_usage $conf{'archiver_threshold1_usage'} (usagelevel: $usagelevel, lasttrigger: $lasttrigger)" if($conf{debug});
+				}
+			}
+			last;
+		}
+		$nextulevel = $i;
+	}
+
+	my $logstr = sprintf "$allusagestr total, $pendingstr pending worker assignment, $numworkers worker%s busy", $numworkers==1?"":"s";
+
+	if(!$triggerlevel) {
+		if($allusage == 0) {
+			# Clear any lingering state
+			$lasttrigger = 0;
+			$timer = undef;
+			$laststatestr = "";
+			$skipdelays = 0;
+
+			printlog "$logstr, sleeping" if($conf{debug});
+			next;
+		}
+
+		# Ramp down workers by lowering last trigger if usage is not at current or previous level.
+		if($lasttrigger > $usagelevel && $lasttrigger != $nextulevel) {
+			printlog "Lowering lasttrigger (lasttrigger: $lasttrigger, usagelevel: $usagelevel, nextulevel: $nextulevel)" if($conf{debug});
+			if($nextulevel < 10) {
+				$lasttrigger = $nextulevel;
 			}
 			else {
-				printlog "$at triggers but pending $pending below archiver_threshold1_usage $conf{'archiver_threshold1_usage'}" if($conf{debug});
+				$lasttrigger = $usagelevel;
 			}
 		}
-	}
-	if(!$triggerlevel) {
+
 		if(!defined($timer)) {
 			$timer = time();
 		}
 		my $elapsed = time() - $timer;
-		my $logstr = "$allusagestr total, $pendingstr pending worker assignment, $numworkers workers busy";
 
 		if($skipdelays) {
 			$skipdelays = 0; # Reset state set by USR1 signal
-			printlog "$allusagestr below next threshold and only waited $elapsed seconds, but proceeding anyway as instructed by USR1 signal";
+			if($pending > 0) {
+				printlog "$allusagestr below next threshold and only waited $elapsed seconds, but proceeding anyway as instructed by USR1 signal";
+			}
+			else {
+				printlog "Ignoring USR1 signal, no pending files to process";
+				next;
+			}
 		}
 		elsif($numworkers == 0 && $elapsed < $conf{archiver_timeout}) {
 			if($conf{debug} || $conf{verbose} && $statestr ne $laststatestr) {
@@ -319,7 +361,6 @@ while(1) {
 				printlog "$logstr ($timeleft seconds until archiver_timeout)";
 			}
 			$laststatestr = $statestr;
-			sleep $sleeptime;
 			next;
 		}
 		elsif($numworkers > 0) {
@@ -327,12 +368,24 @@ while(1) {
 				printlog $logstr;
 			}
 			$laststatestr = $statestr;
-			sleep $sleeptime;
 			next;
 		}
 
-		# Trigger anyway
-		$triggerlevel = $numworkers + 1;
+		if($pending > 0) {
+			# Fall through means force trigger
+			$triggerlevel = $numworkers + 1;
+			printlog "$logstr, force trigger (skipdelays: $skipdelays, numworkers: $numworkers, elapsed: $elapsed, usagelevel: $usagelevel, lasttrigger: $lasttrigger)" if($conf{debug});
+		}
+	}
+
+	printlog "$logstr" if($conf{debug});
+
+	# Only do one mop-up pass.
+	if($usagelevel == 0) {
+		$lasttrigger = 0;
+	}
+	else {
+		$lasttrigger = $triggerlevel;
 	}
 
 	$timer = undef;
@@ -340,9 +393,9 @@ while(1) {
 
 	my $tospawn = $triggerlevel - $numworkers;
 
-	if($conf{debug}) {
-		printlog "Workers running: $numworkers Trigger level: $triggerlevel Workers to spawn: $tospawn";
-	}
+	printlog "Workers running: $numworkers Trigger level: $triggerlevel Workers to spawn: $tospawn" if($conf{debug});
+
+	next unless($tospawn > 0);
 
 	# Sort files oldest-first to preserve temporal affinity
 	my @fsorted = sort {$files{$a}{mtime} <=> $files{$b}{mtime}} keys %files;
@@ -354,7 +407,7 @@ while(1) {
 	# FIXME: Future improvement is to have more strict adherence to the
 	# temporal affinity and not split chunks with similar timestamps
 	# between tapes/workers as we might do now...
-	my $spawnsize = $allusage/$triggerlevel + 1;
+	my $spawnsize = $allusage/$triggerlevel + 1; # Add 1 to cater for rounding error on single run.
 	while($tospawn--) {
 		my @myfsorted;
 		my $mytot = 0;
@@ -369,7 +422,7 @@ while(1) {
 
 		$mytot /= (1024*1024*1024); # GiB
 
-		my $logstr = sprintf("Spawning worker #%d to archive %.03f GiB in %d files from $outdir", scalar(@workers)+1, $mytot, scalar(@myfsorted));
+		my $logstr = sprintf("Spawning worker #%d to archive %.03f GiB in %d file%s from $outdir", scalar(@workers)+1, $mytot, scalar(@myfsorted), scalar(@myfsorted)==1?"":"s");
 		if($conf{verbose}) {
 			$logstr .= " (files: " . join(" ", @myfsorted) . ")";
 		}
@@ -396,4 +449,7 @@ while(1) {
 		# Pace ourselves, and ensure unique description string.
 		sleep 2;
 	}
+
+	# Force check if changing the number of workers (mostly to print status)
+	$lastcheck = 0;
 }
