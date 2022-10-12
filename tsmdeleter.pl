@@ -295,9 +295,17 @@ sub processqueue
 
 	# Do deletions and update @files to reflect files left to delete
 	if(@files) {
-		my ($fh, $filename) = tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink);
+		my ($fh, $filename) = eval { tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink); };
+		if(!$fh) {
+			warn "Failed opening filelist: $@";
+			return 0;
+		}
 		print $fh map { "$conf{dir}/out/$_\n"; } @files;
-		close($fh) || die "Failed writing to $filename: $!";
+		if(!close($fh)) {
+			warn "Failed writing to $filename: $!";
+			unlink $filename;
+			return 0;
+		}
 
 		my $logstr = "Trying to delete " . scalar(@files) . " files";
 		if($conf{debug}) {

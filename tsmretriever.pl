@@ -367,7 +367,12 @@ while(1) {
 				}
 			}
 
-			my ($lf, $listfile) = tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0);
+			my ($lf, $listfile) = eval { tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0); };
+			if(!$lf) {
+				warn "Unable to open file in $conf{dir}/requestlists: $@";
+				sleep $conf{sleeptime};
+				next;
+			}
 			my %lfinfo;
 
 			my $lfsize = 0;
@@ -384,7 +389,12 @@ while(1) {
 					$lfinfo{$name} = -1;
 				}
 			}
-			close $lf or die "Closing $listfile failed: $!";
+			if(!close($lf)) {
+				warn "Closing $listfile failed: $!";
+				unlink $listfile;
+				sleep $conf{sleeptime};
+				next;
+			}
 
 			if(-z $listfile) {
 				unlink $listfile;

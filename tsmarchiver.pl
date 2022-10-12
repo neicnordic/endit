@@ -429,9 +429,19 @@ while(1) {
 
 		my $dounlink = 1;
 		$dounlink=0 if($conf{debug});
-		my ($fh, $fn) = tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink);
+		my ($fh, $fn) = eval { tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink); };
+		if(!$fh) {
+			warn "Failed opening filelist: $@";
+			sleep $conf{sleeptime};
+			next;
+		}
 		print $fh map { "${outdir}$_\n"; } @myfsorted;
-		close($fh) || die "Failed writing to $fn: $!";
+		if(!close($fh)) {
+			warn "Failed writing to $fn: $!";
+			unlink $fn;
+			sleep $conf{sleeptime};
+			next;
+		}
 
 		my $desc=strftime("ENDIT-%Y-%m-%dT%H:%M:%S%z",localtime());
 		my $pid = spawn_worker($logstr, $fn, $desc, $mytot, scalar(@myfsorted));
