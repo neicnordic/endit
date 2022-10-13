@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #   tsm_getvolumecontent.pl - helper script to show tsm tape contents
-#   Copyright (C) 2012-2020 <Niklas.Edmundsson@hpc2n.umu.se>
+#   Copyright (C) 2012-2022 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
