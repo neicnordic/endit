@@ -134,7 +134,7 @@ sub cleandir($$) {
 			next;
 		}
 
-		if($mtime < $maxage) {
+		if($ctime < $maxage) {
 			printlog "File $fn mtime $mtime ctime $ctime is stale, removing";
 			if(!unlink($fn)) {
 				printlog "unlink file $fn failed: $!";
@@ -189,8 +189,8 @@ if($conf{'desc-long'}) {
 printlog("$0: Starting$desclong...");
 
 # Clean up stale remnants left by earlier crashes/restarts
-cleandir("$conf{dir}/in", 30);
-cleandir("$conf{dir}/requestlists", 30);
+cleandir("$conf{dir}/in", 7);
+cleandir("$conf{dir}/requestlists", 7);
 
 # Warning: Infinite loop. Program may not stop.
 while(1) {
