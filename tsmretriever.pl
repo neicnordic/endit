@@ -88,6 +88,13 @@ sub checkrequest($) {
 		return undef;
 	}
 
+	# Avoid processing misplaced state files from non-retrieve/recall
+	# actions by the ENDIT dcache plugin.
+	if($state->{action} && $state->{action} ne "recall") {
+		printlog "$req_filename is $state->{action}, ignoring" if $conf{debug};
+		return undef;
+	}
+
 	my $in_filename = $conf{dir} . '/in/' . $req;
 	my $in_filesize=(stat $in_filename)[7];
 	if(defined($in_filesize) && defined($state->{file_size}) && $in_filesize == $state->{file_size}) {
