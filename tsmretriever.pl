@@ -538,6 +538,19 @@ while(1) {
 						printlog "dsmc output: " . join("\n", @out);
 					}
 
+					# Check if we got any files of
+					# unexpected size. This can happen if
+					# we run out of disk space, or if there
+					# are duplicate archived files with
+					# different file size.
+					while(my($f, $s) = each(%lfinfo)) {
+						my $fn = "$indir/$f";
+						my $fsize = (stat($fn))[7];
+						if(defined($fsize) && $fsize != $s) {
+							printlog("Warning: Retrieved file $fn size $fsize but it doesn't match request size $s. If the problem persists, manual investigation and intervention is needed.");
+						}
+					}
+
 					# sleep to pace ourselves if these are
 					# persistent reoccurring failures
 					sleep $conf{sleeptime};
