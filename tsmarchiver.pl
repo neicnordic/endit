@@ -438,7 +438,9 @@ while(1) {
 		print $fh map { "${outdir}$_\n"; } @myfsorted;
 		if(!close($fh)) {
 			warn "Failed writing to $fn: $!";
-			unlink $fn;
+			if(!unlink($fn)) {
+				printlog "unlink '$fn' failed: $!";
+			}
 			sleep $conf{sleeptime};
 			next;
 		}

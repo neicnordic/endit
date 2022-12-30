@@ -84,7 +84,9 @@ sub checkrequest($) {
 	if(!$state || $state->{parent_pid} && getpgrp($state->{parent_pid})<=0)
 	{
 		printlog "Broken request file $req_filename, removing";
-		unlink $req_filename;
+		if(!unlink($req_filename)) {
+			printlog "unlink '$req_filename' failed: $!";
+		}
 		return undef;
 	}
 
@@ -144,7 +146,7 @@ sub cleandir($$) {
 		if($ctime < $maxage) {
 			printlog "File $fn mtime $mtime ctime $ctime is stale, removing";
 			if(!unlink($fn)) {
-				printlog "unlink file $fn failed: $!";
+				printlog "unlink '$fn' failed: $!";
 			}
 		}
 	}
@@ -241,7 +243,11 @@ while(1) {
 					# results. We'll retry and if stuff is
 					# really broken, the admins will notice
 					# from hanging restore requests anyway.
-					unlink $w->{listfile} unless($conf{debug});
+					if(!$conf{debug}) {
+						if(!unlink($w->{listfile})) {
+							printlog "unlink '$w->{listfile}' failed: $!";
+						}
+					}
 				} 
 				$w;
 			} @workers;
@@ -399,13 +405,17 @@ while(1) {
 			}
 			if(!close($lf)) {
 				warn "Closing $listfile failed: $!";
-				unlink $listfile;
+				if(!unlink($listfile)) {
+					printlog "unlink '$listfile' failed: $!";
+				}
 				sleep $conf{sleeptime};
 				next;
 			}
 
 			if(-z $listfile) {
-				unlink $listfile;
+				if(!unlink($listfile)) {
+					printlog "unlink '$listfile' failed: $!";
+				}
 				next;
 			}
 			$lastmount{$tape} = time;
@@ -459,7 +469,9 @@ while(1) {
 					my $fsize = (stat($fn))[7];
 					if(defined($fsize) && $fsize != $s) {
 						printlog("On-disk file $fn size $fsize doesn't match request size $s, removing.") if($conf{verbose});
-						unlink($fn);
+						if(!unlink($fn)) {
+							printlog "unlink '$fn' failed: $!";
+						}
 					}
 				}
 				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});

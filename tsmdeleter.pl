@@ -236,7 +236,9 @@ sub addtoqueue
 			rename("$trashdir/$f", "$debugdir/$f") or warn "Failed to move $f to $debugdir/ : $!";
 		}
 		else {
-			unlink("$trashdir/$f") or warn "Failed to unlink $f: $!";
+			if(!unlink("$trashdir/$f")) {
+				printlog "unlink '$trashdir/$f' failed: $!";
+			}
 		}
 	}
 
@@ -303,7 +305,9 @@ sub processqueue
 		print $fh map { "$conf{dir}/out/$_\n"; } @files;
 		if(!close($fh)) {
 			warn "Failed writing to $filename: $!";
-			unlink $filename;
+			if(!unlink($filename)) {
+				printlog "unlink '$filename' failed: $!";
+			}
 			return 0;
 		}
 
@@ -333,7 +337,11 @@ sub processqueue
 			@files = keys %f;
 		}
 
-		unlink($filename) unless($conf{debug});
+		if(!$conf{debug}) {
+			if(!unlink($filename)) {
+				printlog "unlink '$filename' failed: $!";
+			}
+		}
 	}
 
 	$needretry = scalar(@files);
@@ -344,7 +352,9 @@ sub processqueue
 
 	# Remove old queue files
 	foreach my $qf (@qfiles) {
-                unlink "$queuedir/$qf";
+                if(!unlink("$queuedir/$qf")) {
+			printlog "unlink '$queuedir/$qf' failed: $!";
+		}
 	}
 
 	printlog "Processing deletion queue done" if($conf{debug});
