@@ -236,6 +236,7 @@ while(1) {
 				# Intentionally not caring about
 				# result codes.
 				$w->{pid} = undef;
+				unlink($w->{listfile}) unless($conf{debug});
 				# One or more workers finished, force check
 				$lastcheck = 0;
 			}
@@ -429,6 +430,8 @@ while(1) {
 
 		my $dounlink = 1;
 		$dounlink=0 if($conf{debug});
+		# Note that UNLINK here is on program exit, ie an extra safety
+		# net.
 		my ($fh, $fn) = eval { tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink); };
 		if(!$fh) {
 			warn "Failed opening filelist: $@";
