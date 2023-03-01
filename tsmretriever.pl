@@ -25,6 +25,14 @@ use JSON;
 use File::Temp qw /tempfile/;
 use File::Basename;
 
+# Be noisy when JSON::XS is missing, consider failing hard in the future
+BEGIN {
+	eval "use JSON::XS";
+	if($@) {
+		warn "Perl module JSON::XS missing, performance is severely reduced";
+	}
+};
+
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
