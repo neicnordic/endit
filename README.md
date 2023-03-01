@@ -19,8 +19,11 @@ The ENDIT daemons are known to work on Perl 5.10 onwards.
 At least the following Perl modules need to be installed:
 
 * JSON
-* JSON::XS (highly recommended, approx 100 times faster parsing compared to pure-perl JSON)
+  * `libjson-perl` (deb), `perl-JSON` (rpm)
+* JSON::XS (approx 100 times faster parsing compared to pure-perl JSON)
+  * `libjson-xs-perl` (deb), `perl-JSON-XS` (rpm)
 * Schedule::Cron (optional, allows for crontab style specification of deletion queue processinginterval)
+  * `libschedule-cron-perl` (deb), `perl-Schedule-Cron` (rpm)
 
 A recent version of the IBM Spectrum Protect (TSM) client is recommended, as of this writing
 v8.1.11 or later, due to [commit 796a02a](https://github.com/neicnordic/endit/commit/796a02a8996f0bc7934721c053f43e0543affedc)
