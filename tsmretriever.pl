@@ -24,6 +24,7 @@ use POSIX qw(strftime WNOHANG);
 use JSON;
 use File::Temp qw /tempfile/;
 use File::Basename;
+use Time::HiRes qw(usleep);
 
 # Be noisy when JSON::XS is missing, consider failing hard in the future
 BEGIN {
@@ -80,13 +81,24 @@ sub checkrequest($) {
 	my $req_filename = $conf{dir} . '/request/' . $req;
 	my $state;
 
-	{
-		local $/; # slurp whole file
-		# If open failed, probably the request was finished or cancelled
-		open my $rf, '<', $req_filename or return undef;
-		my $json_text = <$rf>;
-		$state = decode_json($json_text);
-		close $rf;
+	return undef unless(-f $req_filename);
+
+	for(1..10) {
+		$state = undef;
+		eval {
+			local $SIG{__WARN__} = sub {};
+			local $SIG{__DIE__} = sub {};
+			local $/; # slurp whole file
+			# If open failed, probably the request was finished or
+			# cancelled.
+			open my $rf, '<', $req_filename or return undef;
+			my $json_text = <$rf>;
+			close $rf;
+			die "Zero-length string" if(length($json_text) == 0);
+			$state = decode_json($json_text);
+		};
+		last if(!$@);
+		usleep(100_000); # Pace ourselves
 	}
 
 	if(!$state || $state->{parent_pid} && getpgrp($state->{parent_pid})<=0)
