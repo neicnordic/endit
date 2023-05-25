@@ -27,7 +27,7 @@ use File::Basename;
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog);
+use Endit qw(%conf readconf printlog readconfoverride);
 
 ###########
 # Variables
@@ -219,7 +219,6 @@ my $laststatestr = "";
 my $outdir = $conf{dir} . '/out/';
 my $lastcheck = 0;
 my $lasttrigger = 0;
-$conf{"archiver_threshold0_usage"} = 0; # Quirk to avoid code duplication when ramping down workers.
 
 while(1) {
 	my $sleeptime = $conf{sleeptime};
@@ -252,6 +251,8 @@ while(1) {
 
 	$lastcheck = time();
 	my $numworkers = scalar(@workers);
+
+	readconfoverride('archiver');
 
 	my %files;
 	getdir($outdir, \%files);

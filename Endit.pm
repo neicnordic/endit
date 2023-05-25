@@ -1,6 +1,6 @@
 #   ENDIT - Efficient Northern Dcache Interface to TSM
 #   Copyright (C) 2006-2017 Mattias Wadenstein <maswan@hpc2n.umu.se>
-#   Copyright (C) 2018-2022 <Niklas.Edmundsson@hpc2n.umu.se>
+#   Copyright (C) 2018-2023 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -22,17 +22,20 @@ use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
 use Sys::Hostname;
+use JSON;
+use Time::HiRes qw(usleep);
 
 our (@ISA, @EXPORT_OK);
 BEGIN {
 	require Exporter;
 	@ISA = qw(Exporter);
-	@EXPORT_OK = qw(%conf readconf printlog);
+	@EXPORT_OK = qw(%conf readconf printlog readconfoverride);
 }
 
 
 our $logsuffix;
-our %conf;
+our %conforig; # The original config read from the main file.
+our %conf; # The current config with override(s) applied.
 
 # Remember PID of the master process, otherwise log messages from worker
 # children gets logged with different PID...
@@ -115,6 +118,12 @@ my %confitems = (
 		example => '/var/log/dcache',
 		desc => 'Log directory',
 	},
+	confoverridefile => {
+		default => '/run/endit/conf-override.json',
+		desc => 'JSON format file for runtime configuration overrides',
+		# Intended for automatic/dynamic configuration changes, like
+		# limiting archiver/retriever sessions based on current load.
+	},
 	dsmcopts => {
 		example => '-asnode=EXAMPLENODE, -errorlogname=/var/log/dcache/dsmerror.log',
 		desc => 'Base options to dsmc, ", "-delimited list',
@@ -128,11 +137,14 @@ my %confitems = (
 	sleeptime => {
 		default => 60,
 		desc => 'Sleep for this many seconds between each cycle',
+		reqposint => 1,
 	},
 	archiver_timeout => {
 		default => 21600,
 		example => 21600,
 		desc => "Push to tape anyway after these many seconds.\nThis should be significantly shorter than the store timeout, commonly 1 day.",
+		reqposint => 1,
+		canoverride => 1,
 	},
 	archiver_timeout_dsmcopts => {
 		desc => 'Extra dsmcopts for archiver_timeout',
@@ -141,24 +153,54 @@ my %confitems = (
 		default => 500,
 		example => 500,
 		desc => "Require this usage, in gigabytes, before migrating to tape using 1 session.\nTune this to be 20-30 minutes or more of tape activity.",
+		reqposint => 1,
+		canoverride => 1,
 	},
 	archiver_threshold2_usage => {
 		example => 2000,
 		desc => "When exceeding this usage, in gigabytes, use 2 sessions.\nThis is used to trigger an additional tape session if one\nsession can't keep up. Recommended setting is somewhere between\ntwice the archiver_threshold1_usage and 20% of the total pool size.",
+		reqint => 1,
+		canoverride => 1,
 	},
 	archiver_threshold3_usage => {
 		desc => "Also archiver_threshold3 ... archiver_threshold9 available if needed.\nThe number corresponds to the number of sessions spawned.",
+		reqint => 1,
+		canoverride => 1,
 	},
-	archiver_threshold4_usage => {},
-	archiver_threshold5_usage => {},
-	archiver_threshold6_usage => {},
-	archiver_threshold7_usage => {},
-	archiver_threshold8_usage => {},
-	archiver_threshold9_usage => {},
+	archiver_threshold4_usage => {
+		reqint => 1,
+		canoverride => 1,
+	},
+	archiver_threshold5_usage => {
+		reqint => 1,
+		canoverride => 1,
+	},
+	archiver_threshold6_usage => {
+		reqint => 1,
+		canoverride => 1,
+	},
+	archiver_threshold7_usage => {
+		reqint => 1,
+		canoverride => 1,
+	},
+	archiver_threshold8_usage => {
+		reqint => 1,
+		canoverride => 1,
+	},
+	archiver_threshold9_usage => {
+		reqint => 1,
+		canoverride => 1,
+	},
+	archiver_threshold0_usage => {
+		# Quirk to avoid code duplication when ramping down workers.
+		# MUST NOT be changed.
+		default => 0,
+	},
 	retriever_maxworkers => {
 		default => 1,
 		example => 3,
 		desc => "Maximum number of concurrent dsmc retrievers.\nNote: Node must have MAXNUMMP increased from default 1.",
+		canoverride => 1,
 	},
 	retriever_remountdelay => {
 		# IBM tapes are specified to endure at least 20000 mounts
@@ -167,6 +209,8 @@ my %confitems = (
 		# 12 mounts per day or 2 hours (7200 s) is a reasonable default.
 		default => 7200,
 		desc => "When in concurrent mode, don't remount tapes more often than this, seconds",
+		reqposint => 1,
+		canoverride => 1,
 	},
 	retriever_hintfile => {
 		example => "/var/spool/endit/tapehints/EXAMPLENODE.json",
@@ -175,10 +219,14 @@ my %confitems = (
 	retriever_reqlistfillwait => {
 		default => 600,
 		desc => "Wait this long after last request before starting a worker for a volume, seconds",
+		reqposint => 1,
+		canoverride => 1,
 	},
 	retriever_reqlistfillwaitmax => {
 		default => 7200,
 		desc => "Force start a worker after this long even if the request list for this volume is still filling up, seconds",
+		reqposint => 1,
+		canoverride => 1,
 	},
 
 	deleter_queueprocinterval => {
@@ -189,10 +237,12 @@ my %confitems = (
 	verbose => {
 		default => 1,
 		desc => 'Enable verbose logging including processed files (1 to enable, 0 to disable)',
+		canoverride => 1,
 	},
 	debug => {
 		default => 0,
 		desc => 'Enable debug mode/logging (1 to enable, 0 to disable)',
+		canoverride => 1,
 	},
 );
 
@@ -203,6 +253,77 @@ sub confdirsort {
 	return -1 if($b=~/_/ && $a!~/_/);
 
 	return $a cmp $b;
+}
+
+# Check if a configuration item is valid.
+# Returns non-empty string with error if invalid.
+sub checkitem {
+	my($item, $value, $override) = @_;
+
+	if($confobsolete{$item}) {
+		return "Config directive $item OBSOLETE";
+	}
+	elsif(!$confitems{$item}) {
+		return "Config directive $item UNKNOWN";
+	}
+	elsif($override && !$confitems{$item}{canoverride}) {
+		return "Cannot override config directive $item";
+	}
+	elsif($confitems{$item}{reqint} && $value!~/^\d+$/) {
+		return "Config directive $item value $value must be an integer";
+	}
+	elsif($confitems{$item}{reqposint} && ($value!~/^\d+$/ || $value<1)) {
+		return "Config directive $item value $value must be positive integer";
+	}
+
+	return ""; # Success
+}
+
+# Check if archiver thresholds are valid.
+# Returns non-empty string with error if invalid.
+sub checkarchthres {
+	my($href) = @_;
+
+	my $prev = 0;
+
+	for my $i (1 .. 9) {
+		my $k = "archiver_threshold${i}_usage";
+		next unless(defined($href->{$k}));
+		if($href->{$k} <= $prev) {
+			return "$k $href->{$k} smaller than lower threshold $prev";
+		}
+	}
+
+	return "";
+}
+
+sub logconfdiff {
+	my($old, $new, $scope) = @_;
+	my %done;
+
+	foreach my $k (sort keys %{$old}) {
+		$done{$k} = 1;
+		if(defined($new->{$k})) {
+			my $p = 0;
+			if(!$scope || $k!~/_/) {
+				$p = 1;
+			}
+			if($k=~/^${scope}_/) {
+				$p = 1;
+			}
+			if($p && $old->{$k} ne $new->{$k}) {
+				printlog "Conf: Changed: $k $old->{$k} -> $new->{$k}";
+			}
+		}
+		else {
+			printlog "Conf: Removed: $k $old->{$k}";
+		}
+	}
+
+	foreach my $k (sort keys %{$new}) {
+		next if($done{$k});
+		printlog "Conf: Added: $k $new->{$k}";
+	}
 }
 
 sub writesampleconf() {
@@ -252,7 +373,7 @@ sub readconf() {
 	foreach my $k (keys %confitems) {
 		next unless(defined($confitems{$k}{default}));
 
-		$conf{$k} = $confitems{$k}{default};
+		$conforig{$k} = $confitems{$k}{default};
 	}
 
 	if($ENV{ENDIT_CONFIG}) {
@@ -284,40 +405,130 @@ sub readconf() {
 			$key = $confold2new{$key};
 		}
 
-		if($confobsolete{$key}) {
-			warn "Config directive $key OBSOLETE, skipping";
+		my $err = checkitem($key, $val);
+		if($err) {
+			warn "$err, skipping";
 			next;
 		}
 
-		if(!$confitems{$key}) {
-			warn "Config directive $key UNKNOWN, skipping";
-			next;
-		}
-
-		$conf{$key} = $val;
+		$conforig{$key} = $val;
 	}
 
 	# Verify that required parameters are defined
 	foreach my $param (qw{dir logdir dsmcopts desc-short desc-long}) {
-		if(!defined($conf{$param})) {
+		if(!defined($conforig{$param})) {
 			die "$conffile: $param is a required parameter, exiting";
 		}
 	}
 
+	my $err = checkarchthres(\%conforig);
+	if($err) {
+		die "$err, exiting";
+	}
+
 	# Verify that dir is present
-	if(! -d "$conf{dir}") {
-		die "Required directory $conf{dir} missing, exiting";
+	if(! -d "$conforig{dir}") {
+		die "Required directory $conforig{dir} missing, exiting";
 	}
 	# Verify that required subdirs are present and writable
 	foreach my $subdir (qw{in out request requestlists trash}) {
-		if(! -d "$conf{dir}/$subdir") {
-			die "Required directory $conf{dir}/$subdir missing, exiting";
+		if(! -d "$conforig{dir}/$subdir") {
+			die "Required directory $conforig{dir}/$subdir missing, exiting";
 		}
-		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$conf{dir}/$subdir"); # croak():s on error
+		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$conforig{dir}/$subdir"); # croak():s on error
 
 		close($fh);
 		unlink($fn);
 	}
+
+	# Expose this configuration
+	%conf = %conforig;
+}
+
+my $lastoverrideload = 0;
+sub readconfoverride {
+	my($scope) = @_;
+	my $j;
+
+	if(! -f $conf{confoverridefile}) {
+		if($lastoverrideload > 0) {
+			logconfdiff(\%conf, \%conforig, $scope);
+			# Return to original configuration
+			%conf = %conforig;
+			$lastoverrideload = 0;
+		}
+		return;
+	}
+
+	my $mtime = (stat(_))[9];
+	if(!$mtime) {
+		# Some kind of error, just return and hope next try succeeds.
+		return;
+	}
+
+	if($lastoverrideload > $mtime) {
+		# We've already loaded this file.
+		return;
+	}
+
+	# Be forgiving if file is non-atomically created
+	for(1..10) {
+		$j = undef;
+		eval {
+			local $SIG{__WARN__} = sub {};
+			local $SIG{__DIE__} = sub {};
+			local $/; # slurp whole file
+			open my $rf, '<', $conf{confoverridefile} or die "open: $!";
+			my $json_text = <$rf>;
+			close $rf;
+			die "Zero-length string" if(length($json_text) == 0);
+			$j = decode_json($json_text);
+		};
+		last if(!$@);
+		usleep(100_000); # Pace ourselves
+	}
+
+	if(!$j) {
+		if($@) {
+			warn "Configuration override $conf{confoverridefile} exists but couldn't be loaded, last error was: $@";
+		}
+		return;
+	}
+
+	# Don't try loading this again.
+	$lastoverrideload = time();
+
+	my %confnew = %conforig;
+	foreach my $k (sort keys %{$j}) {
+		if(!$k || !$j->{$k}) {
+			warn "Aborting override load: empty configuration override $k $j->{$k}";
+			return;
+		}
+		my $err = checkitem($k, $j->{$k}, 1);
+		if($err) {
+			warn "Aborting override load: $err";
+			return;
+		}
+		$confnew{$k} = $j->{$k};
+
+		# Archiver thresholds needs some special handling, since
+		# reducing the number of sessions requires deleting items that
+		# might be defined in the regular config.
+		if($k =~ /^archiver_threshold[2-9]_usage$/ && $j->{$k} == 0) {
+			delete $confnew{$k};
+		}
+	}
+
+	my $err = checkarchthres(\%confnew);
+	if($err) {
+		warn "Aborting override load: $err";
+		return;
+	}
+
+	logconfdiff(\%conf, \%confnew, $scope);
+
+	# Apply this configuration
+	%conf = %confnew;
 }
 
 1;

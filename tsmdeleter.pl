@@ -2,7 +2,7 @@
 
 #   ENDIT - Efficient Northern Dcache Interface to TSM
 #   Copyright (C) 2006-2017 Mattias Wadenstein <maswan@hpc2n.umu.se>
-#   Copyright (C) 2018-2022 <Niklas.Edmundsson@hpc2n.umu.se>
+#   Copyright (C) 2018-2023 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ my $have_schedule_cron = eval
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);
-use Endit qw(%conf readconf printlog);
+use Endit qw(%conf readconf printlog readconfoverride);
 
 
 ###########
@@ -371,6 +371,7 @@ sub cronsleep
 	my ($time, $cron) = @_;
 
 	# Perform these actions on each iteration.
+	readconfoverride('deleter');
 	checktrashdir();
 
 	if($flushqueue) {

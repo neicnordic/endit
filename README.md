@@ -224,6 +224,34 @@ handling in the ENDIT daemons. In general, the `USR1` signal tells the
 daemons to disregard all timers and thresholds and perform any pending
 actions immediately.
 
+# Temporary configuration overrides
+
+It's possible to (temporarily) override select configuration items using
+a separate JSON configuration file.
+
+This makes it possible for sites to automate some load balancing tasks,
+for example implementing backoff mechanisms for sites where lots of reads
+queued results in starving writes.
+
+Since this is focused on on-the-fly automatic solutions, the
+configuration override file is a JSON file to make it easy to create it
+using whatever tool that's suitable for the job. It is assumed that the
+main endit.conf configuration file is under the control of some
+configuration management tool such as Puppet, Ansible, etc; and thus not
+suitable for on-the-fly manipulation.
+
+The default file location chosen is `/run/endit/conf-override.json` with
+the motivation that overrides are temporary.
+
+If the file content is created by a non-root user, `tmpfiles.d` can be
+used to create the directory on boot, here is an example
+`/etc/tmpfiles.d/endit.conf` snippet:
+
+```
+d /run/endit 0700 dcache dcache
+```
+
+
 # Migration and/or decommission
 
 When migrating ENDIT service to another host (typically when renewing

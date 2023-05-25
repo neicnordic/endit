@@ -37,7 +37,7 @@ BEGIN {
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog);
+use Endit qw(%conf readconf printlog readconfoverride);
 
 ###########
 # Variables
@@ -293,6 +293,8 @@ while(1) {
 		# sleep to let requester remove requests and pace ourselves
 		sleep $conf{sleeptime};
 	}
+
+	readconfoverride('retriever');
 
 #	read current requests
 	{
