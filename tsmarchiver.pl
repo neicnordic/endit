@@ -27,7 +27,7 @@ use File::Basename;
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog readconfoverride);
+use Endit qw(%conf readconf printlog readconfoverride writejson);
 
 ###########
 # Variables
@@ -255,12 +255,15 @@ while(1) {
 	readconfoverride('archiver');
 
 	my %files;
+	my %currstats;
 	getdir($outdir, \%files);
 
 	# Use current total usage for trigger thresholds, easier for humans
 	# to figure out what values to set.
 	my $allusage = getusage(\%files);
 	my $allusagestr = sprintf("%.03f GiB in %d file%s", $allusage, scalar keys %files, (scalar keys %files)==1?"":"s");
+	$currstats{'archiver_usage_gib'} = $allusage;
+	$currstats{'archiver_usage_files'} = scalar keys %files;
 
 	# Filter out files currently being worked on
 	while (my $k = each %files) {
@@ -271,8 +274,12 @@ while(1) {
 
 	my $pending = getusage(\%files);
 	my $pendingstr = sprintf("%.03f GiB in %d file%s", $pending, scalar keys %files, (scalar keys %files)==1?"":"s");
+	$currstats{'archiver_pending_gib'} = $pending;
+	$currstats{'archiver_pending_files'} = scalar keys %files;
 	# Include number of workers and current hour in state string.
 	my $statestr = "$allusagestr $pendingstr $numworkers " . (localtime(time()))[2];
+	$currstats{'archiver_busyworkers'} = $numworkers;
+	$currstats{'archiver_time'} = time();
 
 	my $triggerlevel;
 	my $usagelevel = 0;
@@ -287,6 +294,9 @@ while(1) {
 
 		# There might be gaps in the threshold definitions, so this gets a bit convoluted.
 		next unless(defined($conf{"${at}_usage"}));
+		if(!$currstats{'archiver_maxworkers'}) {
+			$currstats{'archiver_maxworkers'} = $i;
+		}
 
 		if($allusage > $conf{"${at}_usage"}) {
 			$usagelevel = $i;
@@ -316,6 +326,8 @@ while(1) {
 		}
 		$nextulevel = $i;
 	}
+
+	writejson(\%currstats, "$conf{'desc-short'}-archiver-stats.json");
 
 	my $logstr = sprintf "$allusagestr total, $pendingstr pending worker assignment, $numworkers worker%s busy", $numworkers==1?"":"s";
 

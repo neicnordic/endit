@@ -37,7 +37,7 @@ BEGIN {
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog readconfoverride);
+use Endit qw(%conf readconf printlog readconfoverride writejson);
 
 ###########
 # Variables
@@ -221,8 +221,12 @@ printlog("$0: Starting$desclong...");
 cleandir("$conf{dir}/in", 7);
 cleandir("$conf{dir}/requestlists", 7);
 
+my $sleeptime = 1; # Want to start with quickly doing a full cycle.
+
 # Warning: Infinite loop. Program may not stop.
 while(1) {
+	my %currstats;
+
 #	load/refresh tape list
 	if (exists $conf{retriever_hintfile}) {
 		my $newtapemodtime = (stat $conf{retriever_hintfile})[9];
@@ -245,13 +249,16 @@ while(1) {
 		}
 	}
 
+	$currstats{'retriever_hintfile_mtime'} = $tapelistmodtime;
+	$currstats{'retriever_hintfile_entries'} = scalar(keys(%{$tapelist}));
+
 #	check if any dsmc workers are done
 	if(@workers) {
 		my $timer = 0;
 		my $atmax = 0;
 		$atmax = 1 if(scalar(@workers) >= $conf{'retriever_maxworkers'});
 
-		while($timer < $conf{sleeptime}) {
+		while($timer < $sleeptime) {
 			@workers = map {
 				my $w = $_;
 				my $wres = waitpid($w->{pid}, WNOHANG);
@@ -280,7 +287,7 @@ while(1) {
 				last;
 			}
 
-			my $st = $conf{sleeptime};
+			my $st = $sleeptime;
 			if($atmax) {
 				# Check frequently if waiting for free worker
 				$st = 1;
@@ -291,8 +298,9 @@ while(1) {
 	}
 	else {
 		# sleep to let requester remove requests and pace ourselves
-		sleep $conf{sleeptime};
+		sleep $sleeptime;
 	}
+	$sleeptime = $conf{sleeptime};
 
 	readconfoverride('retriever');
 
@@ -326,6 +334,12 @@ while(1) {
 			}
 		}
 	}
+
+	$currstats{'retriever_requests_files'} = scalar(keys(%reqset));
+	$currstats{'retriever_busyworkers'} = scalar(@workers);
+	$currstats{'retriever_maxworkers'} = $conf{'retriever_maxworkers'};
+	$currstats{'retriever_time'} = time();
+	writejson(\%currstats, "$conf{'desc-short'}-retriever-stats.json");
 
 #	if any requests and free worker
 	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {
@@ -450,6 +464,7 @@ while(1) {
 			}
 			printlog "Running worker on volume $tape ($lfstats)$lffiles";
 
+			$sleeptime = 1;
 #			spawn worker
 			my $pid;
 			my $j;

@@ -29,7 +29,7 @@ our (@ISA, @EXPORT_OK);
 BEGIN {
 	require Exporter;
 	@ISA = qw(Exporter);
-	@EXPORT_OK = qw(%conf readconf printlog readconfoverride);
+	@EXPORT_OK = qw(%conf readconf printlog readconfoverride writejson);
 }
 
 
@@ -123,6 +123,11 @@ my %confitems = (
 		desc => 'JSON format file for runtime configuration overrides',
 		# Intended for automatic/dynamic configuration changes, like
 		# limiting archiver/retriever sessions based on current load.
+	},
+	currstatsdir => {
+		default => '/run/endit',
+		desc => 'Directory name for JSON format current status files',
+		# Intended for consumption by tools and/or metric logging.
 	},
 	dsmcopts => {
 		example => '-asnode=EXAMPLENODE, -errorlogname=/var/log/dcache/dsmerror.log',
@@ -441,6 +446,15 @@ sub readconf() {
 		unlink($fn);
 	}
 
+	if(-d $conforig{currstatsdir}) {
+		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>$conforig{currstatsdir}); # croak():s on error
+		close($fh);
+		unlink($fn);
+	}
+	else {
+		warn "currstatsdir $conforig{currstatsdir} missing";
+	}
+
 	# Expose this configuration
 	%conf = %conforig;
 }
@@ -529,6 +543,32 @@ sub readconfoverride {
 
 	# Apply this configuration
 	%conf = %confnew;
+}
+
+sub writejson {
+	my($ref, $name) = @_;
+
+	return undef unless(-d $conf{currstatsdir});
+
+	my($fh, $fn) = tempfile("$name.XXXXXX", DIR=>$conf{currstatsdir});
+
+	print $fh encode_json($ref),"\n";
+
+        if(!close($fh)) {
+		warn "Closing $fn: $!";
+		unlink($fn);
+		return undef;
+	}
+
+	if(!rename($fn, "$conf{currstatsdir}/$name")) {
+		warn "Rename $fn $conf{currstatsdir}/$name: $!";
+		unlink($fn);
+		return undef;
+	}
+
+	printlog "Wrote $conf{currstatsdir}/$name" if($conf{debug});
+
+	return 1;
 }
 
 1;
