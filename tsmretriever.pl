@@ -502,6 +502,7 @@ while(1) {
 
 				# Check for incomplete leftovers of retrieved files
 				while(my($f, $s) = each(%lfinfo)) {
+					next if($s < 0);
 					my $fn = "$indir/$f";
 					my $fsize = (stat($fn))[7];
 					if(defined($fsize) && $fsize != $s) {
