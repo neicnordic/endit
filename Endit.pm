@@ -237,6 +237,24 @@ my %confitems = (
 		reqposint => 1,
 		canoverride => 1,
 	},
+	retriever_buffersize => {
+		default => 1000,
+		desc => "Size (in GiB) on filesystem reserved for the ENDIT retriever to buffer files during retrieval before they are processed by dCache.",
+		reqposint => 1,
+		canoverride => 1,
+	},
+	retriever_backlogthreshold => {
+		default => 10,
+		desc => "Threshold (in %), when filesystem use of the ENDIT reserved buffersize goes above this don't start new workers",
+		reqposint => 1,
+		canoverride => 1,
+	},
+	retriever_killthreshold => {
+		default => 95,
+		desc => "Threshold (in %), when filesystem use of the ENDIT reserved buffersize goes above this running workers are killed to avoid filling the filesystem",
+		reqposint => 1,
+		canoverride => 1,
+	},
 
 	deleter_queueprocinterval => {
 		default => "monthly",

@@ -25,6 +25,8 @@ use JSON;
 use File::Temp qw /tempfile/;
 use File::Basename;
 use Time::HiRes qw(usleep);
+use Filesys::Df;
+use List::Util qw(max);
 
 # Be noisy when JSON::XS is missing, consider failing hard in the future
 BEGIN {
@@ -206,6 +208,37 @@ sub readtapelist() {
 
 }
 
+# Returns: (state, avail_gib) where state:
+# 0 == OK
+# 1 == Backlog, don't spawn new workers
+# 2 == Full, kill all workers
+sub checkfree() {
+
+	# Work with GiB sized blocks
+	my $r =  df("$conf{dir}/out", 1024*1024*1024);
+
+	return(1) unless($r);
+
+	if($r->{blocks} < $conf{retriever_buffersize}) {
+		# FS is smaller than buffersize
+		warn "$conf{dir}/out size $r->{blocks} GiB smaller than configured buffer of $conf{retriever_buffersize} GiB, trying to select a suitable size.";
+		$conf{retriever_buffersize} = $r->{blocks} / 2;
+		warn "Chose $conf{retriever_buffersize} GiB buffer size";
+	}
+
+	my $killsize = max(1, $conf{retriever_buffersize} * (1-($conf{retriever_killthreshold}/100)) );
+	my $backlogsize = max(2, $conf{retriever_buffersize} * (1-($conf{retriever_backlogthreshold}/100)) );
+
+	if($r->{bavail} < $killsize) {
+		return (2, $r->{bavail});
+	}
+	elsif($r->{bavail} < $backlogsize) {
+		return (1, $r->{bavail});
+	}
+
+	return (0, $r->{bavail});
+}
+
 my $tapelistmodtime=0;
 my $tapelist = {};
 my %reqset;
@@ -263,6 +296,7 @@ while(1) {
 	if(@workers) {
 		my $timer = 0;
 		my $atmax = 0;
+		my $backoffstate = (checkfree())[0];
 		$atmax = 1 if(scalar(@workers) >= $conf{'retriever_maxworkers'});
 
 		while($timer < $sleeptime) {
@@ -294,9 +328,16 @@ while(1) {
 				last;
 			}
 
+			# Also break early if backoff state changes
+			if($backoffstate != (checkfree())[0]) {
+				last;
+			}
+
 			my $st = $sleeptime;
-			if($atmax) {
+			if($atmax || $backoffstate > 0) {
 				# Check frequently if waiting for free worker
+				# or if we might run out of space forcing us
+				# to kill the current workers.
 				$st = 1;
 			}
 			$timer += $st;
@@ -310,6 +351,18 @@ while(1) {
 	$sleeptime = $conf{sleeptime};
 
 	readconfoverride('retriever');
+
+	my ($dobackoff, $out_avail_gib) = checkfree();
+	my $out_fill_pct = ($conf{retriever_buffersize}-$out_avail_gib) / $conf{retriever_buffersize};
+	$out_fill_pct = int(max($out_fill_pct, 0)*100);
+	printlog sprintf("$conf{dir}/out avail %.1f GiB, fill $out_fill_pct %%, dobackoff: $dobackoff", $out_avail_gib) if($conf{debug});
+
+	if($dobackoff == 2 && @workers) {
+		printlog sprintf("Filesystem $conf{dir}/out space low, avail %.1f GiB, fill $out_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", $out_avail_gib);
+		killchildren();
+		sleep(1);
+		next;
+	}
 
 #	read current requests
 	{
@@ -346,10 +399,17 @@ while(1) {
 	$currstats{'retriever_busyworkers'} = scalar(@workers);
 	$currstats{'retriever_maxworkers'} = $conf{'retriever_maxworkers'};
 	$currstats{'retriever_time'} = time();
+	if(defined($out_avail_gib)) {
+		$currstats{'retriever_out_avail_gib'} = $out_avail_gib;
+	}
 	writejson(\%currstats, "$conf{'desc-short'}-retriever-stats.json");
 
 #	if any requests and free worker
 	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {
+		if($dobackoff != 0) {
+			printlog sprintf("Filesystem $conf{dir}/out avail %.1f GiB, fill $out_fill_pct %% > fill backlogthreshold $conf{retriever_backlogthreshold} %%, not starting more workers", $out_avail_gib) if($conf{debug} || $conf{verbose});
+			next;
+		}
 #		make list blacklisting pending tapes
 		my %usedtapes;
 		my $job = {};
