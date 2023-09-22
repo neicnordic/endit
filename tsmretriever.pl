@@ -217,8 +217,9 @@ if($conf{'desc-long'}) {
 }
 printlog("$0: Starting$desclong...");
 
-# Clean up stale remnants left by earlier crashes/restarts
-cleandir("$conf{dir}/in", 7);
+# Clean up stale remnants left by earlier crashes/restarts, do the request list
+# directory only on startup.
+my $lastclean = 0;
 cleandir("$conf{dir}/requestlists", 7);
 
 my $sleeptime = 1; # Want to start with quickly doing a full cycle.
@@ -226,6 +227,12 @@ my $sleeptime = 1; # Want to start with quickly doing a full cycle.
 # Warning: Infinite loop. Program may not stop.
 while(1) {
 	my %currstats;
+
+	# Clean in dir periodically
+	if($lastclean < time() + 86400) {
+		cleandir("$conf{dir}/in", 7);
+		$lastclean = time();
+	}
 
 #	load/refresh tape list
 	if (exists $conf{retriever_hintfile}) {
