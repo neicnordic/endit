@@ -87,7 +87,8 @@ my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 my $outdir = "$conf{dir}/out";
 my @cmd = ('dsmc','query','archive','-filesonly','-detail',@dsmcopts,"$outdir/*");
-my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
+my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
+$cmdstr .= "'" . join("' '", @cmd) . "' 2>&1";
 
 printlog "Executing: $cmdstr" if($conf{debug});
 

@@ -522,7 +522,8 @@ while(1) {
 				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
-				my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
+				my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
+				$cmdstr .= "'" . join("' '", @cmd) . "' 2>&1";
 				printlog "Executing: $cmdstr" if($conf{debug});
 				my $execstart = time();
 				my @out;

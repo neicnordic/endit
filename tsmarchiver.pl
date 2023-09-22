@@ -115,7 +115,8 @@ sub spawn_worker {
 
 	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
 		"-description=$description","-filelist=$filelist");
-	my $cmdstr = "'" . join("' '", @cmd) . "' 2>&1";
+	my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
+	$cmdstr .= "'" . join("' '", @cmd) . "' 2>&1";
 	printlog "Executing: $cmdstr" if($conf{debug});
 	my $execstart = time();
 
