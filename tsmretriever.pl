@@ -490,16 +490,20 @@ while(1) {
 				@workers=();
 				my $dsmcpid;
 				sub killchild() {
-
 					if(defined($dsmcpid)) {
-						kill("TERM", $dsmcpid);
+						# IBM actually recommends using
+						# KILL to avoid core dumps due
+						# to signal handling issues wrt
+						# multi-threading.
+						# See https://www.ibm.com/docs/en/storage-protect/8.1.20?topic=started-ending-session
+						kill("KILL", $dsmcpid);
 					}
 				}
 
-				$SIG{INT} = sub { printlog("Got SIGINT, exiting..."); killchild(); exit; };
-				$SIG{QUIT} = sub { printlog("Got SIGQUIT, exiting..."); killchild(); exit; };
-				$SIG{TERM} = sub { printlog("Got SIGTERM, exiting..."); killchild(); exit; };
-				$SIG{HUP} = sub { printlog("Got SIGHUP, exiting..."); killchild(); exit; };
+				$SIG{INT} = sub { printlog("Child got SIGINT, exiting..."); killchild(); exit; };
+				$SIG{QUIT} = sub { printlog("Child got SIGQUIT, exiting..."); killchild(); exit; };
+				$SIG{TERM} = sub { printlog("Child got SIGTERM, exiting..."); killchild(); exit; };
+				$SIG{HUP} = sub { printlog("Child got SIGHUP, exiting..."); killchild(); exit; };
 
 
 				# printlog():s in child gets the child pid
@@ -523,7 +527,7 @@ while(1) {
 				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
 				my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
-				$cmdstr .= "'" . join("' '", @cmd) . "' 2>&1";
+				$cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
 				printlog "Executing: $cmdstr" if($conf{debug});
 				my $execstart = time();
 				my @out;
@@ -556,7 +560,7 @@ while(1) {
 
 						if(/^Action\s+\[.*\]\s+:/) {
 							printlog "dsmc prompt detected, aborting";
-							kill("TERM", $dsmcpid);
+							kill("KILL", $dsmcpid);
 							last;
 						}
 

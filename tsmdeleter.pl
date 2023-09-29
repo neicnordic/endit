@@ -76,9 +76,11 @@ my %text2fmt = (
 # Helper functions
 
 sub killchild() {
-
 	if(defined($dsmcpid)) {
-		kill("TERM", $dsmcpid);
+		# IBM actually recommends using KILL to avoid core dumps due to
+		# signal handling issues wrt multi-threading.
+		# See https://www.ibm.com/docs/en/storage-protect/8.1.20?topic=started-ending-session
+		kill("KILL", $dsmcpid);
 	}
 }
 
@@ -94,7 +96,7 @@ sub rundelete {
 	my @cmd = ('dsmc','delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
 	my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
-	$cmdstr .= "'" . join("' '", @cmd) . "' 2>&1";
+	$cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
 	printlog "Executing: $cmdstr" if($conf{debug});
 
 	my $dsmcfh;
