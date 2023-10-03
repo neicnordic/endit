@@ -27,7 +27,7 @@ use File::Basename;
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog readconfoverride writejson);
+use Endit qw(%conf readconf printlog readconfoverride writejson writeprom);
 
 ###########
 # Variables
@@ -333,6 +333,7 @@ while(1) {
 	}
 
 	writejson(\%currstats, "$conf{'desc-short'}-archiver-stats.json");
+	writeprom(\%currstats, "$conf{'desc-short'}-archiver-stats.prom");
 
 	my $logstr = sprintf "$allusagestr total, $pendingstr pending worker assignment, $numworkers worker%s busy", $numworkers==1?"":"s";
 

@@ -39,7 +39,7 @@ BEGIN {
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog readconfoverride writejson);
+use Endit qw(%conf readconf printlog readconfoverride writejson writeprom);
 
 ###########
 # Variables
@@ -403,6 +403,7 @@ while(1) {
 		$currstats{'retriever_out_avail_gib'} = $out_avail_gib;
 	}
 	writejson(\%currstats, "$conf{'desc-short'}-retriever-stats.json");
+	writeprom(\%currstats, "$conf{'desc-short'}-retriever-stats.prom");
 
 #	if any requests and free worker
 	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {

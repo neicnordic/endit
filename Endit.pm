@@ -29,7 +29,7 @@ our (@ISA, @EXPORT_OK);
 BEGIN {
 	require Exporter;
 	@ISA = qw(Exporter);
-	@EXPORT_OK = qw(%conf readconf printlog readconfoverride writejson);
+	@EXPORT_OK = qw(%conf readconf printlog readconfoverride writejson writeprom);
 }
 
 
@@ -581,6 +581,42 @@ sub writejson {
 		unlink($fn);
 		return undef;
 	}
+
+	chmod(0644, $fn); # Ensure world readable
+
+	if(!rename($fn, "$conf{currstatsdir}/$name")) {
+		warn "Rename $fn $conf{currstatsdir}/$name: $!";
+		unlink($fn);
+		return undef;
+	}
+
+	printlog "Wrote $conf{currstatsdir}/$name" if($conf{debug});
+
+	return 1;
+}
+
+sub writeprom {
+	my($ref, $name) = @_;
+
+	return undef unless(-d $conf{currstatsdir});
+
+	my $ts = $ref->{'retriever_time'} // $ref->{'archiver_time'} // 0;
+	$ts *= 1000; # ms
+
+	my($fh, $fn) = tempfile("$name.XXXXXX", DIR=>$conf{currstatsdir});
+
+	foreach my $k (sort keys %{$ref}) {
+		next if($k =~ /^[a-z]+_time$/); # skip timestamp
+		print $fh "endit_${k}{hsm=\"$conf{'desc-short'}\"} $ref->{$k} $ts\n";
+	}
+
+        if(!close($fh)) {
+		warn "Closing $fn: $!";
+		unlink($fn);
+		return undef;
+	}
+
+	chmod(0644, $fn); # Ensure world readable
 
 	if(!rename($fn, "$conf{currstatsdir}/$name")) {
 		warn "Rename $fn $conf{currstatsdir}/$name: $!";
