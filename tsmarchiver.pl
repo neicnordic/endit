@@ -270,12 +270,18 @@ while(1) {
 	$currstats{'archiver_usage_gib'} = $allusage;
 	$currstats{'archiver_usage_files'} = scalar keys %files;
 
-	# Filter out files currently being worked on
+	# Filter out files currently being worked on and gather stats
+	my %working;
 	while (my $k = each %files) {
 		foreach my $w (@workers) {
-			delete $files{$k} if($w->{files}{$k});
+			if($w->{files}{$k}) {
+				$working{$k} = $files{$k};
+				delete $files{$k};
+			}
 		}
 	}
+	$currstats{'archiver_working_gib'} = getusage(\%working);
+	$currstats{'archiver_working_files'} = scalar keys %working;
 
 	my $pending = getusage(\%files);
 	my $pendingstr = sprintf("%.03f GiB in %d file%s", $pending, scalar keys %files, (scalar keys %files)==1?"":"s");

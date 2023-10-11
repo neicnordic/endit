@@ -26,7 +26,7 @@ use File::Temp qw /tempfile/;
 use File::Basename;
 use Time::HiRes qw(usleep);
 use Filesys::Df;
-use List::Util qw(max);
+use List::Util qw(max sum0);
 
 # Be noisy when JSON::XS is missing, consider failing hard in the future
 BEGIN {
@@ -129,14 +129,6 @@ sub checkrequest($) {
 	return $state;
 }
 
-sub processing_file($$) {
-	my ($worker,$file) = @_;
-	if($worker) {
-		return exists $worker->{files}->{$file};
-	} else {
-		return 0;
-	}
-}
 
 # Clean a directory.
 # Removes files older than $maxage days in directory $dir.
@@ -395,6 +387,19 @@ while(1) {
 		}
 	}
 
+	# Gather working stats
+	my %working;
+	foreach my $w (@workers) {
+		while (my $k = each %{$w->{files}}) {
+			if($reqset{$k}) {
+				$working{$k} = $w->{files}{$k};
+			}
+		}
+	}
+	$currstats{'retriever_working_gib'} = sum0(values %working)/(1024*1024*1024);
+	$currstats{'retriever_working_files'} = scalar keys %working;
+
+
 	$currstats{'retriever_requests_files'} = scalar(keys(%reqset));
 	$currstats{'retriever_busyworkers'} = scalar(@workers);
 	$currstats{'retriever_maxworkers'} = $conf{'retriever_maxworkers'};
@@ -541,6 +546,7 @@ while(1) {
 				$j->{pid} = $pid;
 				$j->{listfile} = $listfile;
 				$j->{tape} = $tape;
+				$j->{files} = \%lfinfo;
 				push @workers, $j;
 			}
 			else {
