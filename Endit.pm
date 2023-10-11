@@ -600,14 +600,10 @@ sub writeprom {
 
 	return undef unless(-d $conf{currstatsdir});
 
-	my $ts = $ref->{'retriever_time'} // $ref->{'archiver_time'} // 0;
-	$ts *= 1000; # ms
-
 	my($fh, $fn) = tempfile("$name.XXXXXX", DIR=>$conf{currstatsdir});
 
 	foreach my $k (sort keys %{$ref}) {
-		next if($k =~ /^[a-z]+_time$/); # skip timestamp
-		print $fh "endit_${k}{hsm=\"$conf{'desc-short'}\"} $ref->{$k} $ts\n";
+		print $fh "endit_${k}{hsm=\"$conf{'desc-short'}\"} $ref->{$k}\n";
 	}
 
         if(!close($fh)) {
