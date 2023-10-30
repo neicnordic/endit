@@ -207,13 +207,13 @@ sub readtapelist() {
 sub checkfree() {
 
 	# Work with GiB sized blocks
-	my $r =  df("$conf{dir}/out", 1024*1024*1024);
+	my $r =  df("$conf{dir}/in", 1024*1024*1024);
 
 	return(1) unless($r);
 
 	if($r->{blocks} < $conf{retriever_buffersize}) {
 		# FS is smaller than buffersize
-		warn "$conf{dir}/out size $r->{blocks} GiB smaller than configured buffer of $conf{retriever_buffersize} GiB, trying to select a suitable size.";
+		warn "$conf{dir}/in size $r->{blocks} GiB smaller than configured buffer of $conf{retriever_buffersize} GiB, trying to select a suitable size.";
 		$conf{retriever_buffersize} = $r->{blocks} / 2;
 		warn "Chose $conf{retriever_buffersize} GiB buffer size";
 	}
@@ -344,13 +344,13 @@ while(1) {
 
 	readconfoverride('retriever');
 
-	my ($dobackoff, $out_avail_gib) = checkfree();
-	my $out_fill_pct = ($conf{retriever_buffersize}-$out_avail_gib) / $conf{retriever_buffersize};
-	$out_fill_pct = int(max($out_fill_pct, 0)*100);
-	printlog sprintf("$conf{dir}/out avail %.1f GiB, fill $out_fill_pct %%, dobackoff: $dobackoff", $out_avail_gib) if($conf{debug});
+	my ($dobackoff, $in_avail_gib) = checkfree();
+	my $in_fill_pct = ($conf{retriever_buffersize}-$in_avail_gib) / $conf{retriever_buffersize};
+	$in_fill_pct = int(max($in_fill_pct, 0)*100);
+	printlog sprintf("$conf{dir}/in avail %.1f GiB, fill $in_fill_pct %%, dobackoff: $dobackoff", $in_avail_gib) if($conf{debug});
 
 	if($dobackoff == 2 && @workers) {
-		printlog sprintf("Filesystem $conf{dir}/out space low, avail %.1f GiB, fill $out_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", $out_avail_gib);
+		printlog sprintf("Filesystem $conf{dir}/in space low, avail %.1f GiB, fill $in_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", $in_avail_gib);
 		killchildren();
 		sleep(1);
 		next;
@@ -404,8 +404,8 @@ while(1) {
 	$currstats{'retriever_busyworkers'} = scalar(@workers);
 	$currstats{'retriever_maxworkers'} = $conf{'retriever_maxworkers'};
 	$currstats{'retriever_time'} = time();
-	if(defined($out_avail_gib)) {
-		$currstats{'retriever_out_avail_gib'} = $out_avail_gib;
+	if(defined($in_avail_gib)) {
+		$currstats{'retriever_in_avail_gib'} = $in_avail_gib;
 	}
 	writejson(\%currstats, "$conf{'desc-short'}-retriever-stats.json");
 	writeprom(\%currstats, "$conf{'desc-short'}-retriever-stats.prom");
@@ -413,7 +413,7 @@ while(1) {
 #	if any requests and free worker
 	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {
 		if($dobackoff != 0) {
-			printlog sprintf("Filesystem $conf{dir}/out avail %.1f GiB, fill $out_fill_pct %% > fill backlogthreshold $conf{retriever_backlogthreshold} %%, not starting more workers", $out_avail_gib) if($conf{debug} || $conf{verbose});
+			printlog sprintf("Filesystem $conf{dir}/in avail %.1f GiB, fill $in_fill_pct %% > fill backlogthreshold $conf{retriever_backlogthreshold} %%, not starting more workers", $in_avail_gib) if($conf{debug} || $conf{verbose});
 			next;
 		}
 #		make list blacklisting pending tapes
