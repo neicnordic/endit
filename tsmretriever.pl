@@ -474,7 +474,7 @@ while(1) {
 					printlog "Proceeding due to USR1 signal despite $msg";
 				}
 				else {
-					printlog "Skipping $msg" if($conf{verbose});
+					printlog "Skipping $msg" if($conf{debug} || ($conf{verbose} && time()-$lastmount{$tape} > 2*$conf{sleeptime}));
 					next;
 				}
 			}
