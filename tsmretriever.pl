@@ -254,7 +254,7 @@ while(1) {
 	my %currstats;
 
 	# Clean in dir periodically
-	if($lastclean < time() + 86400) {
+	if($lastclean + 86400 < time()) {
 		cleandir("$conf{dir}/in", 7);
 		$lastclean = time();
 	}
