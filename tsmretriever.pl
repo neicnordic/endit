@@ -122,7 +122,7 @@ sub checkrequest($) {
 	my $in_filename = $conf{dir} . '/in/' . $req;
 	my $in_filesize=(stat $in_filename)[7];
 	if(defined($in_filesize) && defined($state->{file_size}) && $in_filesize == $state->{file_size}) {
-		printlog "Not doing $req due to file of correct size already present" if $conf{'verbose'};
+		printlog "Not doing $req due to file of correct size already present" if $conf{'debug'};
 		return undef;
 	}
 
