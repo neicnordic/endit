@@ -78,30 +78,12 @@ $SIG{TERM} = sub { warn("Got SIGTERM, exiting...\n"); killchildren(); exit; };
 $SIG{HUP} = sub { warn("Got SIGHUP, exiting...\n"); killchildren(); exit; };
 $SIG{USR1} = sub { $skipdelays = 1; };
 
-sub checkrequest($) {
-	my $req = shift;
+
+sub checkrequest(@) {
+	my ($req,$state) = @_;
 	my $req_filename = $conf{dir} . '/request/' . $req;
-	my $state;
 
 	return undef unless(-f $req_filename);
-
-	for(1..10) {
-		$state = undef;
-		eval {
-			local $SIG{__WARN__} = sub {};
-			local $SIG{__DIE__} = sub {};
-			local $/; # slurp whole file
-			# If open failed, probably the request was finished or
-			# cancelled.
-			open my $rf, '<', $req_filename or return undef;
-			my $json_text = <$rf>;
-			close $rf;
-			die "Zero-length string" if(length($json_text) == 0);
-			$state = decode_json($json_text);
-		};
-		last if(!$@);
-		usleep(100_000); # Pace ourselves
-	}
 
 	if(!$state || $state->{parent_pid} && getpgrp($state->{parent_pid})<=0)
 	{
@@ -116,19 +98,54 @@ sub checkrequest($) {
 		return undef;
 	}
 
-	# Avoid processing misplaced state files from non-retrieve/recall
-	# actions by the ENDIT dcache plugin.
-	if($state->{action} && $state->{action} ne "recall") {
+	my $in_filename = $conf{dir} . '/in/' . $req;
+	my $in_filesize=(stat $in_filename)[7];
+	if(defined($in_filesize) && defined($state->{file_size}) && $in_filesize == $state->{file_size}) {
+		printlog "Not doing $req due to file of correct size $in_filesize already present, removing request" if $conf{'debug'};
+		if(!unlink($req_filename) && !$!{ENOENT}) {
+			printlog "unlink '$req_filename' failed: $!";
+		}
+		return undef;
+	}
+
+	return $state;
+}
+
+
+sub loadrequest($) {
+	my $req = shift;
+	my $req_filename = $conf{dir} . '/request/' . $req;
+	my $state;
+
+	# Retry if file is being written as we try to read it
+	for(1..25) {
+		$state = undef;
+		eval {
+			local $SIG{__WARN__} = sub {};
+			local $SIG{__DIE__} = sub {};
+			local $/; # slurp whole file
+			# If open failed, probably the request was finished or
+			# cancelled.
+			open my $rf, '<', $req_filename or return undef;
+			my $json_text = <$rf>;
+			my $ts = (stat $rf)[9] or die "stat failed: $!";
+			close $rf or die "close failed: $!";
+			die "Zero-length string" if(length($json_text) == 0);
+			$state = decode_json($json_text);
+			$state->{endit_req_ts} = $ts;
+		};
+		last if(!$@);
+		usleep(20_000); # Pace ourselves for 20 ms
+	}
+
+	# Avoid processing state files from non-retrieve/recall actions by the
+	# ENDIT dcache plugin.
+	if($state && $state->{action} && $state->{action} ne "recall") {
 		printlog "$req_filename is $state->{action}, ignoring" if $conf{debug};
 		return undef;
 	}
 
-	my $in_filename = $conf{dir} . '/in/' . $req;
-	my $in_filesize=(stat $in_filename)[7];
-	if(defined($in_filesize) && defined($state->{file_size}) && $in_filesize == $state->{file_size}) {
-		printlog "Not doing $req due to file of correct size already present" if $conf{'debug'};
-		return undef;
-	}
+	return undef unless(checkrequest($req, $state));
 
 	return $state;
 }
@@ -278,6 +295,9 @@ while(1) {
 
 					$tapelist = $newtapelist;
 					$tapelistmodtime = $newtapemodtime;
+
+					# Also revalidate cached requests.
+					%reqset=();
 				}
 			}
 		} else {
@@ -361,42 +381,71 @@ while(1) {
 	}
 
 #	read current requests
-	{
-		%reqset=();
-		my $reqdir = "$conf{dir}/request/";
-		opendir(my $rd, $reqdir) || die "opendir $reqdir: $!";
-		my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
-		closedir($rd);
-		if (@requests) {
-			foreach my $req (@requests) {
-#				It'd be nice to do this here, but takes way too long with a large request list. Instead we only check it when making the requestlist per tape.
-#				my $reqinfo = checkrequest($req);
+	my $reqdir = "$conf{dir}/request/";
+	opendir(my $rd, $reqdir) || die "opendir $reqdir: $!";
+	my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
+	closedir($rd);
+	my $requests_bytes = 0;
+	if (@requests) {
+		my $cachetime = time();
+		foreach my $req (@requests) {
+			if($reqset{$req}) {
+				# Cached, check if we need to revalidate.
 				my $reqfilename=$conf{dir} . '/request/' . $req;
 				my $ts =(stat $reqfilename)[9];
-				my $reqinfo = {timestamp => $ts } if defined $ts;
+				if(!$ts) {
+					printlog "Invalidating $req: $!" if($conf{debug});
+					delete $reqset{$req};
+				}
+				elsif($ts == $reqset{$req}->{endit_req_ts}) {
+					$reqset{$req}->{cachetime} = $cachetime;
+				}
+				else {
+					printlog "Revalidating $req: file timestamp $ts != cached timestamp $reqset{$req}->{endit_req_ts}" if($conf{debug});
+					delete $reqset{$req};
+				}
+			}
+			# Even if it existed above, might be invalidated there
+			if(!$reqset{$req}) {
+				my $reqinfo = loadrequest($req);
 				if ($reqinfo) {
-					if (!exists $reqinfo->{tape}) {
-						if (my $tape = $tapelist->{$req}{volid}) {
-							# Ensure name contains
-							# no fs path characters
-							$tape=~tr/a-zA-Z0-9.-/_/cs;
-							$reqinfo->{tape} = $tape;
-						} else {
-							$reqinfo->{tape} = 'default';
-						}
+					if (my $tape = $tapelist->{$req}{volid})
+					{
+						# Ensure name contains
+						# no fs path characters
+						$tape=~tr/a-zA-Z0-9.-/_/cs;
+						$reqinfo->{tape} = $tape;
+					} else {
+						$reqinfo->{tape} = 'default';
 					}
+					$reqinfo->{cachetime} = $cachetime;
 					$reqset{$req} = $reqinfo;
 				}
 			}
 		}
+		while(my $req = each %reqset) {
+			if($reqset{$req}->{cachetime} != $cachetime) {
+				printlog "Invalidating $req: Not present" if($conf{debug});
+				delete $reqset{$req};
+			}
+			elsif($reqset{$req}->{file_size}) {
+				$requests_bytes += $reqset{$req}->{file_size};
+			}
+		}
 	}
+	else {
+		%reqset=();
+	}
+
+	printlog scalar(%reqset) . " entries from $conf{dir}/request/ cached" if($conf{debug});
 
 	# Gather working stats
 	my %working;
 	foreach my $w (@workers) {
-		while (my $k = each %{$w->{files}}) {
+		printlog "Worker $w->{pid} tape $w->{tape} listfile $w->{listfile} with " . scalar(%{$w->{files}}) . " files" if($conf{debug});
+		while (my($k,$v) = each %{$w->{files}}) {
 			if($reqset{$k}) {
-				$working{$k} = $w->{files}{$k};
+				$working{$k} = $v;
 			}
 		}
 	}
@@ -405,6 +454,7 @@ while(1) {
 
 
 	$currstats{'retriever_requests_files'} = scalar(keys(%reqset));
+	$currstats{'retriever_requests_gib'} = $requests_bytes/(1024*1024*1024);
 	$currstats{'retriever_busyworkers'} = scalar(@workers);
 	$currstats{'retriever_maxworkers'} = $conf{'retriever_maxworkers'};
 	$currstats{'retriever_time'} = time();
@@ -426,15 +476,8 @@ while(1) {
 		if(@workers) {
 			%usedtapes = map { $_->{tape} => 1 } @workers;
 		}
-		foreach my $name (keys %reqset) {
-			my $req = $reqset{$name};
-			my $tape;
-			if (exists $req->{tape}) {
-				$tape = $req->{tape};
-			} else {
-				warn "tape should have been set for $name, but setting it again!";
-				$tape = 'default';
-			}
+		while(my($name, $req) = each %reqset) {
+			my $tape = $req->{tape};
 			$job->{$tape}->{$name} = $req;
 			if(defined($job->{$tape}->{listsize})) {
 				$job->{$tape}->{listsize} ++;
@@ -443,18 +486,18 @@ while(1) {
 				$job->{$tape}->{listsize} = 1;
 			}
 			if(defined $job->{$tape}->{tsoldest}) {
-				if($job->{$tape}->{tsoldest} > $req->{timestamp}){
-					$job->{$tape}->{tsoldest} = $req->{timestamp}
+				if($job->{$tape}->{tsoldest} > $req->{endit_req_ts}){
+					$job->{$tape}->{tsoldest} = $req->{endit_req_ts}
 				}
 			} else {
-				$job->{$tape}->{tsoldest}=$req->{timestamp};
+				$job->{$tape}->{tsoldest}=$req->{endit_req_ts};
 			}
 			if(defined $job->{$tape}->{tsnewest}) {
-				if($job->{$tape}->{tsnewest} < $req->{timestamp}){
-					$job->{$tape}->{tsnewest} = $req->{timestamp}
+				if($job->{$tape}->{tsnewest} < $req->{endit_req_ts}){
+					$job->{$tape}->{tsnewest} = $req->{endit_req_ts}
 				}
 			} else {
-				$job->{$tape}->{tsnewest}=$req->{timestamp};
+				$job->{$tape}->{tsnewest}=$req->{endit_req_ts};
 			}
 		}
 
@@ -503,8 +546,8 @@ while(1) {
 			my %lfinfo;
 
 			my $lfsize = 0;
-			foreach my $name (keys %{$job->{$tape}}) {
-				my $reqinfo = checkrequest($name);
+			while(my $name = each %{$job->{$tape}}) {
+				my $reqinfo = checkrequest($name, $reqset{$name});
 				next unless($reqinfo);
 
 				print $lf "$conf{dir}/out/$name\n";
@@ -539,13 +582,13 @@ while(1) {
 			if($conf{verbose}) {
 				$lffiles .= join(" ", " files:", sort(keys(%lfinfo)));
 			}
-			printlog "Running worker on volume $tape ($lfstats)$lffiles";
 
 			$sleeptime = 1;
 #			spawn worker
 			my $pid;
 			my $j;
 			if ($pid = fork) {
+				printlog "Running worker PID $pid on volume $tape ($lfstats)$lffiles";
 				$j=$job->{$tape};
 				$j->{pid} = $pid;
 				$j->{listfile} = $listfile;
