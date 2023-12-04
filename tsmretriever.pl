@@ -105,8 +105,12 @@ sub checkrequest($) {
 
 	if(!$state || $state->{parent_pid} && getpgrp($state->{parent_pid})<=0)
 	{
-		printlog "Broken request file $req_filename, removing";
-		if(!unlink($req_filename)) {
+		my $s="Broken request file $req_filename";
+		if($state && $state->{parent_pid}) {
+			$s .= " (PPID $state->{parent_pid} dead)";
+		}
+		printlog "$s, removing" if $conf{debug};
+		if(!unlink($req_filename) && !$!{ENOENT}) {
 			printlog "unlink '$req_filename' failed: $!";
 		}
 		return undef;
@@ -153,13 +157,13 @@ sub cleandir($$) {
 		my ($mtime, $ctime) = (stat $fn)[9,10];
 
 		if(!defined($ctime)) {
-			printlog "Failed to stat() file $fn: $!";
+			printlog "Failed to stat() file $fn: $!" if(!$!{ENOENT});
 			next;
 		}
 
 		if($ctime < $maxage) {
-			printlog "File $fn mtime $mtime ctime $ctime is stale, removing";
-			if(!unlink($fn)) {
+			printlog "File $fn mtime $mtime ctime $ctime is stale, removing" if $conf{verbose};
+			if(!unlink($fn) && !$!{ENOENT}) {
 				printlog "unlink '$fn' failed: $!";
 			}
 		}
@@ -585,7 +589,7 @@ while(1) {
 					my $fsize = (stat($fn))[7];
 					if(defined($fsize) && $fsize != $s) {
 						printlog("On-disk file $fn size $fsize doesn't match request size $s, removing.") if($conf{verbose});
-						if(!unlink($fn)) {
+						if(!unlink($fn) && !$!{ENOENT}) {
 							printlog "unlink '$fn' failed: $!";
 						}
 					}
