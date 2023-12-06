@@ -400,7 +400,7 @@ while(1) {
 			}
 		}
 	}
-	$currstats{'retriever_working_gib'} = sum0(values %working)/(1024*1024*1024);
+	$currstats{'retriever_working_gib'} = sum0(grep {$_>0} values %working)/(1024*1024*1024);
 	$currstats{'retriever_working_files'} = scalar keys %working;
 
 
