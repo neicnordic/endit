@@ -448,6 +448,10 @@ while(1) {
 				$working{$k} = $v;
 			}
 		}
+		# Update tape lastmount timestamp if we're still working on it
+		if($w->{tape} ne 'default') {
+			$lastmount{$w->{tape}} = time();
+		}
 	}
 	$currstats{'retriever_working_gib'} = sum0(grep {$_>0} values %working)/(1024*1024*1024);
 	$currstats{'retriever_working_files'} = scalar keys %working;
