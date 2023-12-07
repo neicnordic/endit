@@ -389,7 +389,7 @@ while(1) {
 	if (@requests) {
 		my $cachetime = time();
 		foreach my $req (@requests) {
-			if($reqset{$req}) {
+			if($reqset{$req} && $reqset{$req}->{endit_req_ct} + $conf{sleeptime} < $cachetime) {
 				# Cached, check if we need to revalidate.
 				my $reqfilename=$conf{dir} . '/request/' . $req;
 				my $ts =(stat $reqfilename)[9];
@@ -398,7 +398,7 @@ while(1) {
 					delete $reqset{$req};
 				}
 				elsif($ts == $reqset{$req}->{endit_req_ts}) {
-					$reqset{$req}->{cachetime} = $cachetime;
+					$reqset{$req}->{endit_req_ct} = $cachetime;
 				}
 				else {
 					printlog "Revalidating $req: file timestamp $ts != cached timestamp $reqset{$req}->{endit_req_ts}" if($conf{debug});
@@ -418,13 +418,13 @@ while(1) {
 					} else {
 						$reqinfo->{tape} = 'default';
 					}
-					$reqinfo->{cachetime} = $cachetime;
+					$reqinfo->{endit_req_ct} = $cachetime;
 					$reqset{$req} = $reqinfo;
 				}
 			}
 		}
 		while(my $req = each %reqset) {
-			if($reqset{$req}->{cachetime} != $cachetime) {
+			if($reqset{$req}->{endit_req_ct} + $conf{sleeptime} < $cachetime) {
 				printlog "Invalidating $req: Not present" if($conf{debug});
 				delete $reqset{$req};
 			}
