@@ -554,11 +554,6 @@ while(1) {
 				push @workers, $j;
 			}
 			else {
-				undef %usedtapes;
-				undef %reqset;
-				undef $tapelist;
-				undef $job;
-				@workers=();
 				my $dsmcpid;
 				sub killchild() {
 					if(defined($dsmcpid)) {
