@@ -26,7 +26,7 @@ use File::Temp qw /tempfile/;
 use File::Basename;
 use Time::HiRes qw(usleep);
 use Filesys::Df;
-use List::Util qw(max sum0);
+use List::Util qw(min max sum0);
 
 # Be noisy when JSON::XS is missing, consider failing hard in the future
 BEGIN {
@@ -482,27 +482,13 @@ while(1) {
 		}
 		while(my($name, $req) = each %reqset) {
 			my $tape = $req->{tape};
+			if($usedtapes{$tape}) {
+				printlog "Skipping $name volume $tape, job already running" if($conf{debug});
+				next;
+			}
 			$job->{$tape}->{$name} = $req;
-			if(defined($job->{$tape}->{listsize})) {
-				$job->{$tape}->{listsize} ++;
-			}
-			else {
-				$job->{$tape}->{listsize} = 1;
-			}
-			if(defined $job->{$tape}->{tsoldest}) {
-				if($job->{$tape}->{tsoldest} > $req->{endit_req_ts}){
-					$job->{$tape}->{tsoldest} = $req->{endit_req_ts}
-				}
-			} else {
-				$job->{$tape}->{tsoldest}=$req->{endit_req_ts};
-			}
-			if(defined $job->{$tape}->{tsnewest}) {
-				if($job->{$tape}->{tsnewest} < $req->{endit_req_ts}){
-					$job->{$tape}->{tsnewest} = $req->{endit_req_ts}
-				}
-			} else {
-				$job->{$tape}->{tsnewest}=$req->{endit_req_ts};
-			}
+			$job->{$tape}->{tsoldest} = min($job->{$tape}->{tsoldest} // $req->{endit_req_ts}, $req->{endit_req_ts});
+			$job->{$tape}->{tsnewest} = max($job->{$tape}->{tsnewest} // $req->{endit_req_ts}, $req->{endit_req_ts});
 		}
 
 #		start jobs on tapes not already taken up until retriever_maxworkers
@@ -513,11 +499,6 @@ while(1) {
 			}
 
 			printlog "Jobs on volume $tape: oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest})) if($conf{debug});
-
-			if(exists($usedtapes{$tape})) {
-				printlog "Skipping volume $tape, job already running" if($conf{debug});
-				next;
-			}
 
 			if($tape ne 'default' && defined $lastmount{$tape} && $lastmount{$tape} > time - $conf{retriever_remountdelay}) {
 				my $msg = "volume $tape, last mounted at " . strftime("%Y-%m-%d %H:%M:%S",localtime($lastmount{$tape})) . " which is more recent than remountdelay $conf{retriever_remountdelay}s ago";
@@ -531,7 +512,7 @@ while(1) {
 			}
 
 			if($tape ne 'default' && $job->{$tape}->{tsoldest} > time()-$conf{retriever_reqlistfillwaitmax} && $job->{$tape}->{tsnewest} > time()-$conf{retriever_reqlistfillwait}) {
-				my $msg = "volume $tape, request list $job->{$tape}->{listsize} entries and still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
+				my $msg = "volume $tape, request list " . (scalar(%{$job->{$tape}})-2) . " entries and still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
 				if($skipdelays) {
 					printlog "Proceeding due to USR1 signal despite $msg";
 				}
@@ -551,6 +532,9 @@ while(1) {
 
 			my $lfsize = 0;
 			while(my $name = each %{$job->{$tape}}) {
+				# Filter out endit-internal items
+				next unless($reqset{$name});
+
 				my $reqinfo = checkrequest($name, $reqset{$name});
 				next unless($reqinfo);
 
