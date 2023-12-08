@@ -221,7 +221,6 @@ printlog("$0: Starting$desclong...");
 
 my $timer;
 my $laststatestr = "";
-my $outdir = $conf{dir} . '/out/';
 my $lastcheck = 0;
 my $lasttrigger = 0;
 
@@ -261,7 +260,7 @@ while(1) {
 
 	my %files;
 	my %currstats;
-	getdir($outdir, \%files);
+	getdir($conf{dir_out}, \%files);
 
 	# Use current total usage for trigger thresholds, easier for humans
 	# to figure out what values to set.
@@ -448,7 +447,7 @@ while(1) {
 
 		$mytot /= (1024*1024*1024); # GiB
 
-		my $logstr = sprintf("Spawning worker #%d to archive %.03f GiB in %d file%s from $outdir", scalar(@workers)+1, $mytot, scalar(@myfsorted), scalar(@myfsorted)==1?"":"s");
+		my $logstr = sprintf("Spawning worker #%d to archive %.03f GiB in %d file%s from $conf{dir_out}", scalar(@workers)+1, $mytot, scalar(@myfsorted), scalar(@myfsorted)==1?"":"s");
 		if($conf{verbose}) {
 			$logstr .= " (files: " . join(" ", @myfsorted) . ")";
 		}
@@ -457,13 +456,13 @@ while(1) {
 		$dounlink=0 if($conf{debug});
 		# Note that UNLINK here is on program exit, ie an extra safety
 		# net.
-		my ($fh, $fn) = eval { tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink); };
+		my ($fh, $fn) = eval { tempfile($filelist, DIR=>"$conf{dir_requestlists}", UNLINK=>$dounlink); };
 		if(!$fh) {
 			warn "Failed opening filelist: $@";
 			sleep $conf{sleeptime};
 			next;
 		}
-		print $fh map { "${outdir}$_\n"; } @myfsorted;
+		print $fh map { "$conf{dir_out}/$_\n"; } @myfsorted;
 		if(!close($fh)) {
 			warn "Failed writing to $fn: $!";
 			if(!unlink($fn)) {

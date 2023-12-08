@@ -458,14 +458,18 @@ sub readconf() {
 		die "Required directory $conforig{dir} missing, exiting";
 	}
 	# Verify that required subdirs are present and writable
-	foreach my $subdir (qw{in out request requestlists trash}) {
-		if(! -d "$conforig{dir}/$subdir") {
-			die "Required directory $conforig{dir}/$subdir missing, exiting";
+	foreach my $subdir (qw{in out request requestlists trash queue}) {
+		my $sd = "$conforig{dir}/$subdir";
+		if(! -d $sd && !mkdir($sd)) {
+			die "mkdir $sd failed: $!";
 		}
-		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$conforig{dir}/$subdir"); # croak():s on error
+		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$sd"); # croak():s on error
 
 		close($fh);
 		unlink($fn);
+
+		# Provide subdirs as variables
+		$conforig{"dir_$subdir"} = $sd;
 	}
 
 	if(-d $conforig{currstatsdir}) {

@@ -89,8 +89,7 @@ my $hintfiletmp = $hftmp->filename;
 
 my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 push @dsmcopts, split(/, /, $conf{'dsmcopts'});
-my $outdir = "$conf{dir}/out";
-my @cmd = ('dsmc','query','archive','-filesonly','-detail',@dsmcopts,"$outdir/*");
+my @cmd = ('dsmc','query','archive','-filesonly','-detail',@dsmcopts,"$conf{dir_out}/*");
 my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
 $cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
 
@@ -142,7 +141,7 @@ while(<$dsmcfh>) {
 	}
 	# Match a line with a file name, save the useful info.
 	# We assume that our file name doesn't contain a space character!
-	elsif(m!^\s*([\d,]+)\s+(\S+)\s+(\d\d\d\d-\d\d-\d\d\s+\d\d:\d\d:\d\d)\s+$outdir/(\S+)\s+(\S+)!)
+	elsif(m!^\s*([\d,]+)\s+(\S+)\s+(\d\d\d\d-\d\d-\d\d\s+\d\d:\d\d:\d\d)\s+$conf{dir_out}/(\S+)\s+(\S+)!)
 	{
 		$size = $1;
 		my $sizeunit = $2;

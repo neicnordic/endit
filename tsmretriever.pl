@@ -74,7 +74,7 @@ $SIG{USR1} = sub { $skipdelays = 1; };
 
 sub checkrequest(@) {
 	my ($req,$state) = @_;
-	my $req_filename = $conf{dir} . '/request/' . $req;
+	my $req_filename = "$conf{dir_request}/$req";
 
 	return undef unless(-f $req_filename);
 
@@ -91,7 +91,7 @@ sub checkrequest(@) {
 		return undef;
 	}
 
-	my $in_filename = $conf{dir} . '/in/' . $req;
+	my $in_filename = "$conf{dir_in}/$req";
 	my $in_filesize=(stat $in_filename)[7];
 	if(defined($in_filesize) && defined($state->{file_size}) && $in_filesize == $state->{file_size}) {
 		printlog "Not doing $req due to file of correct size $in_filesize already present, removing request" if $conf{'debug'};
@@ -107,7 +107,7 @@ sub checkrequest(@) {
 
 sub loadrequest($) {
 	my $req = shift;
-	my $req_filename = $conf{dir} . '/request/' . $req;
+	my $req_filename = "$conf{dir_request}/$req";
 	my $state;
 
 	# Retry if file is being written as we try to read it
@@ -204,20 +204,25 @@ sub readtapelist() {
 	}
 }
 
+use constant {
+	CF_OK	=> 0,
+	CF_BACKLOG => 1,
+	CF_FULL	=> 2,
+};
 # Returns: (state, avail_gib) where state:
-# 0 == OK
-# 1 == Backlog, don't spawn new workers
-# 2 == Full, kill all workers
+#  CF_OK      - Usage lower than any thresholds
+#  CF_FULL    - Usage larger than retriever_killthreshold.
+#  CF_BACKLOG - Usage larger than retriever_backlogthreshold.
 sub checkfree() {
 
 	# Work with GiB sized blocks
-	my $r =  df("$conf{dir}/in", 1024*1024*1024);
+	my $r =  df($conf{dir_in}, 1024*1024*1024);
 
-	return(1) unless($r);
+	return(CF_BACKLOG) unless($r);
 
 	if($r->{blocks} < $conf{retriever_buffersize}) {
 		# FS is smaller than buffersize
-		warn "$conf{dir}/in size $r->{blocks} GiB smaller than configured buffer of $conf{retriever_buffersize} GiB, trying to select a suitable size.";
+		warn "$conf{dir_in} size $r->{blocks} GiB smaller than configured buffer of $conf{retriever_buffersize} GiB, trying to select a suitable size.";
 		$conf{retriever_buffersize} = $r->{blocks} / 2;
 		warn "Chose $conf{retriever_buffersize} GiB buffer size";
 	}
@@ -226,13 +231,13 @@ sub checkfree() {
 	my $backlogsize = max(2, $conf{retriever_buffersize} * (1-($conf{retriever_backlogthreshold}/100)) );
 
 	if($r->{bavail} < $killsize) {
-		return (2, $r->{bavail});
+		return (CF_FULL, $r->{bavail});
 	}
 	elsif($r->{bavail} < $backlogsize) {
-		return (1, $r->{bavail});
+		return (CF_BACKLOG, $r->{bavail});
 	}
 
-	return (0, $r->{bavail});
+	return (CF_OK, $r->{bavail});
 }
 
 my $tapelistmodtime=0;
@@ -249,7 +254,7 @@ printlog("$0: Starting$desclong...");
 # Clean up stale remnants left by earlier crashes/restarts, do the request list
 # directory only on startup.
 my $lastclean = 0;
-cleandir("$conf{dir}/requestlists", 7);
+cleandir($conf{dir_requestlists}, 7);
 
 my $sleeptime = 1; # Want to start with quickly doing a full cycle.
 
@@ -259,11 +264,11 @@ while(1) {
 
 	# Clean in dir periodically
 	if($lastclean + 86400 < time()) {
-		cleandir("$conf{dir}/in", 7);
+		cleandir($conf{dir_in}, 7);
 		$lastclean = time();
 	}
 
-#	load/refresh tape list
+	# Load/refresh tape list
 	if (exists $conf{retriever_hintfile}) {
 		my $newtapemodtime = (stat $conf{retriever_hintfile})[9];
 		if(defined $newtapemodtime) {
@@ -291,7 +296,7 @@ while(1) {
 	$currstats{'retriever_hintfile_mtime'} = $tapelistmodtime;
 	$currstats{'retriever_hintfile_entries'} = scalar(keys(%{$tapelist}));
 
-#	check if any dsmc workers are done
+	# Check if any dsmc workers are done
 	if(@workers) {
 		my $timer = 0;
 		my $atmax = 0;
@@ -333,7 +338,7 @@ while(1) {
 			}
 
 			my $st = $sleeptime;
-			if($atmax || $backoffstate > 0) {
+			if($atmax || $backoffstate != CF_OK) {
 				# Check frequently if waiting for free worker
 				# or if we might run out of space forcing us
 				# to kill the current workers.
@@ -344,7 +349,7 @@ while(1) {
 		}
 	}
 	else {
-		# sleep to let requester remove requests and pace ourselves
+		# No workers, wait for requests.
 		sleep $sleeptime;
 	}
 	$sleeptime = $conf{sleeptime};
@@ -354,18 +359,17 @@ while(1) {
 	my ($dobackoff, $in_avail_gib) = checkfree();
 	my $in_fill_pct = ($conf{retriever_buffersize}-$in_avail_gib) / $conf{retriever_buffersize};
 	$in_fill_pct = int(max($in_fill_pct, 0)*100);
-	printlog sprintf("$conf{dir}/in avail %.1f GiB, fill $in_fill_pct %%, dobackoff: $dobackoff", $in_avail_gib) if($conf{debug});
+	printlog sprintf("$conf{dir_in} avail %.1f GiB, fill $in_fill_pct %%, dobackoff: $dobackoff", $in_avail_gib) if($conf{debug});
 
-	if($dobackoff == 2 && @workers) {
-		printlog sprintf("Filesystem $conf{dir}/in space low, avail %.1f GiB, fill $in_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", $in_avail_gib);
+	if($dobackoff == CF_FULL && @workers) {
+		printlog sprintf("Filesystem $conf{dir_in} space low, avail %.1f GiB, fill $in_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", $in_avail_gib);
 		killchildren();
 		sleep(1);
 		next;
 	}
 
-#	read current requests
-	my $reqdir = "$conf{dir}/request/";
-	opendir(my $rd, $reqdir) || die "opendir $reqdir: $!";
+	# Read current requests
+	opendir(my $rd, $conf{dir_request}) || die "opendir $conf{dir_request}: $!";
 	my (@requests) = grep { /^[0-9A-Fa-f]+$/ } readdir($rd); # omit entries with extensions
 	closedir($rd);
 	my $requests_bytes = 0;
@@ -374,7 +378,7 @@ while(1) {
 		foreach my $req (@requests) {
 			if($reqset{$req} && $reqset{$req}->{endit_req_ct} + $conf{sleeptime} < $cachetime) {
 				# Cached, check if we need to revalidate.
-				my $reqfilename=$conf{dir} . '/request/' . $req;
+				my $reqfilename="$conf{dir_request}/$req";
 				my $ts =(stat $reqfilename)[9];
 				if(!$ts) {
 					printlog "Invalidating $req: $!" if($conf{debug});
@@ -420,7 +424,7 @@ while(1) {
 		%reqset=();
 	}
 
-	printlog scalar(%reqset) . " entries from $conf{dir}/request/ cached" if($conf{debug});
+	printlog scalar(%reqset) . " entries from $conf{dir_request} cached" if($conf{debug});
 
 	# Gather working stats
 	my %working;
@@ -451,13 +455,13 @@ while(1) {
 	writejson(\%currstats, "$conf{'desc-short'}-retriever-stats.json");
 	writeprom(\%currstats, "$conf{'desc-short'}-retriever-stats.prom");
 
-#	if any requests and free worker
+	# If any requests and free worker
 	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {
-		if($dobackoff != 0) {
-			printlog sprintf("Filesystem $conf{dir}/in avail %.1f GiB, fill $in_fill_pct %% > fill backlogthreshold $conf{retriever_backlogthreshold} %%, not starting more workers", $in_avail_gib) if($conf{debug} || $conf{verbose});
+		if($dobackoff != CF_OK) {
+			printlog sprintf("Filesystem $conf{dir_in} avail %.1f GiB, fill $in_fill_pct %% > fill backlogthreshold $conf{retriever_backlogthreshold} %%, not starting more workers", $in_avail_gib) if($conf{debug} || $conf{verbose});
 			next;
 		}
-#		make list blacklisting pending tapes
+		# Make list blacklisting pending tapes
 		my %usedtapes;
 		my $job = {};
 		if(@workers) {
@@ -474,7 +478,7 @@ while(1) {
 			$job->{$tape}->{tsnewest} = max($job->{$tape}->{tsnewest} // $req->{endit_req_ts}, $req->{endit_req_ts});
 		}
 
-#		start jobs on tapes not already taken up until retriever_maxworkers
+		# Start jobs on tapes not already taken up until retriever_maxworkers
 		foreach my $tape (sort { $job->{$a}->{tsoldest} <=> $job->{$b}->{tsoldest} } keys %{$job}) {
 			if(scalar(@workers) >= $conf{'retriever_maxworkers'}) {
 				printlog "At $conf{'retriever_maxworkers'}, not starting more jobs" if($conf{debug});
@@ -505,9 +509,9 @@ while(1) {
 				}
 			}
 
-			my ($lf, $listfile) = eval { tempfile("$tape.XXXXXX", DIR=>"$conf{dir}/requestlists", UNLINK=>0); };
+			my ($lf, $listfile) = eval { tempfile("$tape.XXXXXX", DIR=>"$conf{dir_requestlists}", UNLINK=>0); };
 			if(!$lf) {
-				warn "Unable to open file in $conf{dir}/requestlists: $@";
+				warn "Unable to open file in $conf{dir_requestlists}: $@";
 				sleep $conf{sleeptime};
 				next;
 			}
@@ -521,7 +525,7 @@ while(1) {
 				my $reqinfo = checkrequest($name, $reqset{$name});
 				next unless($reqinfo);
 
-				print $lf "$conf{dir}/out/$name\n";
+				print $lf "$conf{dir_out}/$name\n";
 				if($reqinfo->{file_size}) {
 					$lfinfo{$name} = $reqinfo->{file_size};
 					$lfsize += $reqinfo->{file_size};
@@ -555,7 +559,7 @@ while(1) {
 			}
 
 			$sleeptime = 1;
-#			spawn worker
+			# Spawn worker
 			my $pid;
 			my $j;
 			if ($pid = fork) {
@@ -589,12 +593,10 @@ while(1) {
 				# printlog():s in child gets the child pid
 				printlog "Trying to retrieve files from volume $tape using file list $listfile";
 
-				my $indir = $conf{dir} . '/in/';
-
 				# Check for incomplete leftovers of retrieved files
 				while(my($f, $s) = each(%lfinfo)) {
 					next if($s < 0);
-					my $fn = "$indir/$f";
+					my $fn = "$conf{dir_in}/$f";
 					my $fsize = (stat($fn))[7];
 					if(defined($fsize) && $fsize != $s) {
 						printlog("On-disk file $fn size $fsize doesn't match request size $s, removing.") if($conf{verbose});
@@ -605,7 +607,7 @@ while(1) {
 				}
 				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
-				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile",$indir);
+				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile","$conf{dir_in}/");
 				my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
 				$cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
 				printlog "Executing: $cmdstr" if($conf{debug});
@@ -656,9 +658,6 @@ while(1) {
 					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), scalar(keys(%lfinfo)));
 					my $speedstats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), scalar(keys(%lfinfo))/$duration);
 					printlog "Retrieve operation from volume $tape successful, $sizestats took $duration seconds, average rate $speedstats";
-
-					# sleep to let requester remove requests
-					sleep 3;
 					exit 0;
 				} else {
 					my $msg = "dsmc retrieve failure volume $tape file list $listfile: ";
@@ -686,7 +685,7 @@ while(1) {
 					# are duplicate archived files with
 					# different file size.
 					while(my($f, $s) = each(%lfinfo)) {
-						my $fn = "$indir/$f";
+						my $fn = "$conf{dir_in}/$f";
 						my $fsize = (stat($fn))[7];
 						if(defined($fsize) && $fsize != $s) {
 							printlog("Warning: Retrieved file $fn size $fsize but it doesn't match request size $s. If the problem persists, manual investigation and intervention is needed.");

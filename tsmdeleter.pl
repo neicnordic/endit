@@ -48,7 +48,6 @@ use Endit qw(%conf readconf printlog readconfoverride);
 # Variables
 $Endit::logsuffix = 'tsmdeleter.log';
 my $filelist = "tsm-delete-files.XXXXXX";
-my ($trashdir, $queuedir);
 my $dounlink = 1;
 my $dsmcpid;
 my $needretry = 0;
@@ -208,16 +207,12 @@ sub addtoqueue
 {
 	my @files = @_;
 
-	if(! -d $queuedir && !mkdir($queuedir)) {
-		die "mkdir $queuedir failed: $!";
-	}
-
 	my $fn;
 	do {
 		# Might have a corner case with a tight loop causing a file
 		# collision, so just handle that.
 		my $now = time();
-		$fn = "$queuedir/$now";
+		$fn = "$conf{dir_queue}/$now";
 		sleep(1) if(-f $fn);
 	} while(-f $fn);
 
@@ -227,21 +222,21 @@ sub addtoqueue
 
 	close($fh) or die "Failed closing $fn: $!";
 
-	my $debugdir = "$trashdir/debug";
+	my $debugdir = "$conf{dir_trash}/debug";
 	if($conf{debug}) {
 		if(! -d $debugdir && !mkdir($debugdir)) {
 			die "mkdir $debugdir: $!";
 		}
 	}
 	foreach my $f (@files) {
-		next unless(-f "$trashdir/$f"); # Skip already deleted files
+		next unless(-f "$conf{dir_trash}/$f"); # Skip already deleted files
 
 		if($conf{debug}) {
-			rename("$trashdir/$f", "$debugdir/$f") or warn "Failed to move $f to $debugdir/ : $!";
+			rename("$conf{dir_trash}/$f", "$debugdir/$f") or warn "Failed to move $f to $debugdir/ : $!";
 		}
 		else {
-			if(!unlink("$trashdir/$f")) {
-				printlog "unlink '$trashdir/$f' failed: $!";
+			if(!unlink("$conf{dir_trash}/$f")) {
+				printlog "unlink '$conf{dir_trash}/$f' failed: $!";
 			}
 		}
 	}
@@ -256,7 +251,7 @@ sub addtoqueue
 # Check trash directory and add deletion requests to queue.
 sub checktrashdir
 {
-	opendir(my $td, $trashdir) || die "opendir $trashdir: $!";
+	opendir(my $td, $conf{dir_trash}) || die "opendir $conf{dir_trash}: $!";
 	my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($td);
 	closedir($td);
 
@@ -270,12 +265,7 @@ sub processqueue
 {
 	printlog "Processing deletion queue start" if($conf{debug});
 
-	if(! -d $queuedir) {
-		printlog "No $queuedir directory, skipping" if($conf{debug});
-		return 0;
-	}
-
-	opendir(my $td, $queuedir) || die "opendir $queuedir: $!";
+	opendir(my $td, $conf{dir_queue}) || die "opendir $conf{dir_queue}: $!";
 	my @qfiles = grep { /^[0-9]+$/ } readdir($td);
 	closedir($td);
 
@@ -284,8 +274,8 @@ sub processqueue
 	foreach my $qf (@qfiles) {
                 local $/; # slurp whole file
 		my $qfd;
-                if(!open $qfd, '<', "$queuedir/$qf") {
-			warn "Opening $queuedir/$qf: $!";
+                if(!open $qfd, '<', "$conf{dir_queue}/$qf") {
+			warn "Opening $conf{dir_queue}/$qf: $!";
 			next;
 		}
                 my $json_text = <$qfd>;
@@ -293,7 +283,7 @@ sub processqueue
                 close $qfd;
 		push @files, @{$qentries};
 		if($conf{debug}) {
-			printlog "Read " . scalar(@{$qentries}) . " entries from $queuedir/$qf";
+			printlog "Read " . scalar(@{$qentries}) . " entries from $conf{dir_queue}/$qf";
 		}
         }
 
@@ -301,12 +291,12 @@ sub processqueue
 
 	# Do deletions and update @files to reflect files left to delete
 	if(@files) {
-		my ($fh, $filename) = eval { tempfile($filelist, DIR=>"$conf{dir}/requestlists", UNLINK=>$dounlink); };
+		my ($fh, $filename) = eval { tempfile($filelist, DIR=>"$conf{dir_requestlists}", UNLINK=>$dounlink); };
 		if(!$fh) {
 			warn "Failed opening filelist: $@";
 			return 0;
 		}
-		print $fh map { "$conf{dir}/out/$_\n"; } @files;
+		print $fh map { "$conf{dir_out}/$_\n"; } @files;
 		if(!close($fh)) {
 			warn "Failed writing to $filename: $!";
 			if(!unlink($filename)) {
@@ -356,8 +346,8 @@ sub processqueue
 
 	# Remove old queue files
 	foreach my $qf (@qfiles) {
-                if(!unlink("$queuedir/$qf")) {
-			printlog "unlink '$queuedir/$qf' failed: $!";
+                if(!unlink("$conf{dir_queue}/$qf")) {
+			printlog "unlink '$conf{dir_queue}/$qf' failed: $!";
 		}
 	}
 
@@ -421,8 +411,6 @@ $| = 1;
 
 readconf();
 $dounlink=0 if($conf{debug});
-$trashdir = "$conf{dir}/trash";
-$queuedir = "$trashdir/queue";
 
 chdir('/') || die "chdir /: $!";
 
