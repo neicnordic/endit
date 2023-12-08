@@ -21,6 +21,7 @@ use strict;
 
 use POSIX qw(strftime);
 use JSON;
+use JSON::XS;
 use File::Temp qw /tempfile/;
 use File::Basename;
 

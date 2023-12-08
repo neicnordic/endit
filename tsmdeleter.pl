@@ -24,6 +24,7 @@ use POSIX qw(strftime);
 use File::Temp qw /tempfile/;
 use File::Basename;
 use JSON;
+use JSON::XS;
 
 # Be flexible in handling Schedule::Cron presence.
 my $have_schedule_cron = eval

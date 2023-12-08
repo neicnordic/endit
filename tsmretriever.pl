@@ -22,19 +22,12 @@ use strict;
 
 use POSIX qw(strftime WNOHANG);
 use JSON;
+use JSON::XS;
 use File::Temp qw /tempfile/;
 use File::Basename;
 use Time::HiRes qw(usleep);
 use Filesys::Df;
 use List::Util qw(min max sum0);
-
-# Be noisy when JSON::XS is missing, consider failing hard in the future
-BEGIN {
-	eval "use JSON::XS";
-	if($@) {
-		warn "Perl module JSON::XS missing, performance is severely reduced";
-	}
-};
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);

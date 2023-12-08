@@ -22,6 +22,7 @@ use warnings;
 use strict;
 
 use JSON;
+use JSON::XS;
 use File::Temp qw /tempfile/;
 use Getopt::Std;
 use File::Basename;
