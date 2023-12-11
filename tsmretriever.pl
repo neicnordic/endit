@@ -194,15 +194,6 @@ sub readtapelist() {
 		};
 		if($@) {
 			warn "Parsing $conf{retriever_hintfile} as JSON failed: $@";
-			warn "Falling back to parse as old format, consider regenerating hint file in current JSON format";
-			seek($tf, 0, 0) || die "Unable to seek to beginning: $!";
-			while (<$tf>) {
-				chomp;
-				my ($id,$tape) = split /\s+/;
-				next unless defined $id && defined $tape;
-				$out->{$id}{volid} = $tape;
-			}
-
 		}
 		close($tf);
 		return $out;
@@ -211,7 +202,6 @@ sub readtapelist() {
 		warn "open $conf{retriever_hintfile}: $!";
 		return undef;
 	}
-
 }
 
 # Returns: (state, avail_gib) where state:
