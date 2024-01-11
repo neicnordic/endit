@@ -151,7 +151,13 @@ my %confitems = (
 	archiver_timeout => {
 		default => 21600,
 		example => 21600,
-		desc => "Push to tape anyway after these many seconds.\nThis should be significantly shorter than the store timeout, commonly 1 day.",
+		desc => "Push to tape anyway after these many seconds.\nThis should be significantly shorter than the dCache store timeout (commonly 1 day).",
+		reqposint => 1,
+		canoverride => 1,
+	},
+	archiver_retrytimeout => {
+		default => 3600,
+		desc => "Timeout used instead of archiver_timeout when in retry situations, usually significantly lower than the archiver_timeout to avoid hitting the dCache store timeout.",
 		reqposint => 1,
 		canoverride => 1,
 	},

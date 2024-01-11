@@ -23,6 +23,7 @@ use strict;
 use POSIX qw(strftime WNOHANG);
 use File::Temp qw /tempfile/;
 use File::Basename;
+use List::Util qw(min);
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);
@@ -223,6 +224,7 @@ my $timer;
 my $laststatestr = "";
 my $lastcheck = 0;
 my $lasttrigger = 0;
+my %retryfiles;
 
 while(1) {
 	my $sleeptime = $conf{sleeptime};
@@ -242,6 +244,11 @@ while(1) {
 				unlink($w->{listfile}) unless($conf{debug});
 				# One or more workers finished, force check
 				$lastcheck = 0;
+				# Did we process all files?
+				while(my ($k, $v) = each %{$w->{files}}) {
+					next unless(-f "$conf{dir_out}/$k");
+					$retryfiles{$k} = $v;
+				}
 			}
 			$w;
 		} @workers;
@@ -349,6 +356,7 @@ while(1) {
 			$timer = undef;
 			$laststatestr = "";
 			$skipdelays = 0;
+			%retryfiles = ();
 
 			printlog "$logstr, sleeping" if($conf{debug});
 			next;
@@ -363,6 +371,22 @@ while(1) {
 			else {
 				$lasttrigger = $usagelevel;
 			}
+		}
+
+		my $archtimeout = $conf{archiver_timeout};
+
+		# Only need to revalidate and look at retryfiles when it might
+		# affect the timeout.
+		while(my ($k, $v) = each %retryfiles) {
+			next if(-f "$conf{dir_out}/$k");
+			delete $retryfiles{$k};
+		}
+		if(scalar keys %retryfiles) {
+			my $numretry = scalar keys %retryfiles;
+			$archtimeout = min($conf{archiver_timeout}, $conf{archiver_retrytimeout});
+			printlog "$numretry files to retry, using archiver_timeout $archtimeout s" if($conf{debug});
+			$statestr .= " $numretry";
+			$logstr .= ", $numretry files to retry";
 		}
 
 		if(!defined($timer)) {
@@ -380,9 +404,9 @@ while(1) {
 				next;
 			}
 		}
-		elsif($numworkers == 0 && $elapsed < $conf{archiver_timeout}) {
+		elsif($numworkers == 0 && $elapsed < $archtimeout) {
 			if($conf{debug} || $conf{verbose} && $statestr ne $laststatestr) {
-				my $timeleft = $conf{archiver_timeout} - $elapsed;
+				my $timeleft = $archtimeout - $elapsed;
 				printlog "$logstr ($timeleft seconds until archiver_timeout)";
 			}
 			$laststatestr = $statestr;
