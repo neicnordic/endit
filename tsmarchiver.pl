@@ -32,7 +32,7 @@ use Endit qw(%conf readconf printlog readconfoverride writejson writeprom);
 
 ###########
 # Variables
-$Endit::logsuffix = 'tsmarchiver.log';
+$Endit::logname = 'tsmarchiver';
 my $filelist = "tsm-archive-files.XXXXXX";
 my $skipdelays = 0; # Set by USR1 signal handler
 my @workers;

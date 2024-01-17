@@ -36,7 +36,7 @@ use Endit qw(%conf readconf printlog readconfoverride writejson writeprom);
 
 ###########
 # Variables
-$Endit::logsuffix = 'tsmretriever.log';
+$Endit::logname = 'tsmretriever';
 my $skipdelays = 0; # Set by USR1 signal handler
 
 # Turn off output buffering

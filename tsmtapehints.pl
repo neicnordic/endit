@@ -29,7 +29,7 @@ use File::Basename;
 use lib dirname (__FILE__);
 use Endit qw(%conf readconf printlog);
 
-$Endit::logsuffix = 'tsmtapehints.log';
+$Endit::logname = 'tsmtapehints';
 
 # Turn off output buffering
 $| = 1;

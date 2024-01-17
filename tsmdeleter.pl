@@ -46,7 +46,7 @@ use Endit qw(%conf readconf printlog readconfoverride);
 
 ###########
 # Variables
-$Endit::logsuffix = 'tsmdeleter.log';
+$Endit::logname = 'tsmdeleter';
 my $filelist = "tsm-delete-files.XXXXXX";
 my $dounlink = 1;
 my $dsmcpid;
