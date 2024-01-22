@@ -9,8 +9,8 @@ data and then use batch processes to archive and restore data to/from tape.
 
 ENDIT is comprised of an ENDIT dCache plugin and the ENDIT daemons.
 
-The IBM Spectrum Protect (TSM) client is used to perform the actual transfer
-of files to/from the tape system.
+The IBM Storage Protect (Spectrum Protect, TSM) client is used to perform
+the actual transfer of files to/from the tape system.
 
 # Requirements
 
@@ -27,7 +27,7 @@ At least the following Perl modules need to be installed:
 * Filesys::Df
   * `libfilesys-df-perl` (deb), `perl-Filesys-Df` (rpm)
 
-A recent version of the IBM Spectrum Protect (TSM) client is recommended, as of this writing
+A recent version of the IBM Storage Protect (TSM) client is recommended, as of this writing
 v8.1.11 or later, due to [commit 796a02a](https://github.com/neicnordic/endit/commit/796a02a8996f0bc7934721c053f43e0543affedc)
 and [IBM APAR IT33143](https://www.ibm.com/support/pages/apar/IT33143).
 
@@ -36,11 +36,10 @@ and [IBM APAR IT33143](https://www.ibm.com/support/pages/apar/IT33143).
 All dCache tape pools needs both the ENDIT dCache plugin and the ENDIT daemons
 installed. 
 
-More verbose instructions are available at
+If needed, more verbose instructions are available in the NeIC wiki at
 https://wiki.neic.no/wiki/DCache_TSM_interface
 
-
-## TSM (IBM Spectrum Protect)
+## TSM (IBM Storage Protect)
 
 Setup TSM so that the user running dCache can `dsmc archive` and `dsmc
 retrieve` files. If you want to have several pool-nodes talking to tape, we
@@ -106,6 +105,18 @@ flushing.
 To get any efficiency in retrieves, you need to allow a large number of
 concurrent restores and have a long timeout for them.
 
+Note that since ENDIT v2 a late allocation scheme is used in order to
+expose all pending read requests to the pools. This minimizes tape
+remounts and thus optimizes access. For new installations, and when
+upgrading from ENDIT v1 to v2, ensure that:
+
+- The dCache pool size is set lower than the actual file space
+  size, 1 TiB lower if the default `retriever_buffersize` is used.
+- You need to allow an even larger amount of concurrent restores and
+  thus might need an even larger restore timeout. ENDIT has been verified with
+  1 million requests on a single tape pool with modest hardware, central
+  dCache resources on your site might well limit this number.
+
 The configuration of the ENDIT dCache plugin is done through the dCache
 admin interface.
 
@@ -121,7 +132,13 @@ generate a sample file and write it to a random file name shown in the output, a
 then exit.
 
 Review the sample configuration, tune it to your needs and copy it to the
-location where ENDIT expects to find it (or use the `ENDIT_CONFIG` environment variable, see below).
+location where ENDIT expects to find it (or use the `ENDIT_CONFIG`
+environment variable, see below). These following items needs special
+attention:
+
+- `dir` - The pool base directory.
+- `desc-short` - Strongly recommended to set to match the dCache
+  `pool.name`.
 
 Starting from a generated sample configuration is highly recommended as it is the main
 documentation for the ENDIT daemon configuration file, and also contains an example on
@@ -131,10 +148,9 @@ how much data needs to be stored to TSM, according to your configuration choices
 The multiple session retrieve support in `tsmretriever.pl` requires a tape hint file,
 see below, that enables running multiple sessions each accessing a single tape.
 
-After installing, you need to create the directories `in`, `out`, `request`,
-`requestlists` and `trash` in the same filesystem as the pool. ENDIT
-daemons check the existence and permissions of needed directories on
-startup.
+On startup, the ENDIT daemons will check/create needed subdirectories in
+the base directory, as specified by the `dir` configuration directive in
+`endit.conf`.
 
 After starting dcache you also need to start the three scripts:
 
@@ -143,6 +159,17 @@ After starting dcache you also need to start the three scripts:
 * `tsmdeleter.pl`
 
 See [startup/README.md](startup/README.md) for details/examples.
+
+By default the ENDIT daemons creates files with statistics in the
+`/run/endit` directory, `tmpfiles.d` can be used to create the directory
+on boot, here is an example `/etc/tmpfiles.d/endit.conf` snippet:
+
+```
+d /run/endit 0755 dcache dcache
+```
+Note that it's by design to have the directory and the statistics files
+world-readable, they contain no secrets and usually needs to be accessed
+by other processes such as the Prometheus `node_exporter`.
 
 To enable concurrent retrieves from multiple tapes you must use a tape hint
 file, a file that provides info on which tape volume files are stored.
@@ -245,14 +272,22 @@ suitable for on-the-fly manipulation.
 The default file location chosen is `/run/endit/conf-override.json` with
 the motivation that overrides are temporary.
 
-If the file content is created by a non-root user, `tmpfiles.d` can be
-used to create the directory on boot, here is an example
-`/etc/tmpfiles.d/endit.conf` snippet:
+# Statistics
 
-```
-d /run/endit 0700 dcache dcache
-```
+The ENDIT daemons generate statistics in JSON and Prometheus
+`node_exporter` formatted files, by default in the `/run/endit`
+directory. The current implementation dumps the ENDIT internals
+unprocessed, sizes are generally GiB denoted by `_gib` in the metric
+name. The best documentation for now are the ENDIT daemon scripts,
+[UTSL](https://en.wiktionary.org/wiki/UTSL) :-)
 
+It is strongly recommended to set `desc-short` in `endit.conf` to match
+the dCache `pool.name` since this is used to tag metrics with supposedly
+unique `hsm` tags in order to be able to differentiate metrics on hosts
+running multiple pools.
+
+When using `node_exporter`, the suggested implementation is to simply
+link the ENDIT `.prom` into your `node_exporter` directory.
 
 # Migration and/or decommission
 
