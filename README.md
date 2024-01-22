@@ -108,11 +108,11 @@ concurrent restores and have a long timeout for them.
 Note that since ENDIT v2 a late allocation scheme is used in order to
 expose all pending read requests to the pools. This minimizes tape
 remounts and thus optimizes access. For new installations, and when
-upgrading from ENDIT v1 to v2, ensure that:
+upgrading from ENDIT v1 to v2, note that:
 
-- The dCache pool size is set lower than the actual file space
+- The dCache pool size needs to be set lower than the actual file space
   size, 1 TiB lower if the default `retriever_buffersize` is used.
-- You need to allow an even larger amount of concurrent restores and
+- You need to allow a really large amount of concurrent restores and
   thus might need an even larger restore timeout. ENDIT has been verified with
   1 million requests on a single tape pool with modest hardware, central
   dCache resources on your site might well limit this number.
@@ -133,7 +133,7 @@ then exit.
 
 Review the sample configuration, tune it to your needs and copy it to the
 location where ENDIT expects to find it (or use the `ENDIT_CONFIG`
-environment variable, see below). These following items needs special
+environment variable, see below). The following items needs special
 attention:
 
 - `dir` - The pool base directory.
@@ -287,7 +287,7 @@ unique `hsm` tags in order to be able to differentiate metrics on hosts
 running multiple pools.
 
 When using `node_exporter`, the suggested implementation is to simply
-link the ENDIT `.prom` into your `node_exporter` directory.
+symlink the ENDIT `.prom` into your `node_exporter` directory.
 
 # Migration and/or decommission
 
