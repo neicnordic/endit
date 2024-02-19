@@ -37,6 +37,20 @@ my $filelist = "tsm-archive-files.XXXXXX";
 my $skipdelays = 0; # Set by USR1 signal handler
 my @workers;
 my $dsmcpid; # used by spawn_worker() signal handler
+my %promtypehelp = (
+	archiver_flushed_bytes => {
+		type => 'counter',
+		help => 'The number of bytes successfully flushed.',
+	},
+	archiver_flushed_files => {
+		type => 'counter',
+		help => 'The number of files successfully flushed.',
+	},
+	archiver_flush_retries => {
+		type => 'counter',
+		help => 'The number of times a flush operation has been retried.',
+	},
+);
 
 ##################
 # Helper functions
@@ -225,6 +239,10 @@ my $laststatestr = "";
 my $lastcheck = 0;
 my $lasttrigger = 0;
 my %retryfiles;
+# Count successfully processed files.
+my $flushed_bytes = 0;
+my $flushed_files = 0;
+my $flush_retries = 0;
 
 while(1) {
 	my $sleeptime = $conf{sleeptime};
@@ -248,6 +266,16 @@ while(1) {
 				while(my ($k, $v) = each %{$w->{files}}) {
 					next unless(-f "$conf{dir_out}/$k");
 					$retryfiles{$k} = $v;
+					$flush_retries++;
+				}
+			}
+			if($lastcheck <= time()+$conf{sleeptime}) {
+				while(my ($k, $v) = each %{$w->{files}}) {
+					next if($w->{counted}{$k});
+					next if(-f "$conf{dir_out}/$k");
+					$flushed_bytes += $v->{size};
+					$flushed_files++;
+					$w->{counted}{$k} = 1;
 				}
 			}
 			$w;
@@ -267,6 +295,11 @@ while(1) {
 
 	my %files;
 	my %currstats;
+
+	$currstats{'archiver_flushed_bytes'} = $flushed_bytes;
+	$currstats{'archiver_flushed_files'} = $flushed_files;
+	$currstats{'archiver_flush_retries'} = $flush_retries;
+
 	getdir($conf{dir_out}, \%files);
 
 	# Use current total usage for trigger thresholds, easier for humans
@@ -345,7 +378,7 @@ while(1) {
 	}
 
 	writejson(\%currstats, "$conf{'desc-short'}-archiver-stats.json");
-	writeprom(\%currstats, "$conf{'desc-short'}-archiver-stats.prom");
+	writeprom(\%currstats, "$conf{'desc-short'}-archiver-stats.prom", \%promtypehelp);
 
 	my $logstr = sprintf "$allusagestr total, $pendingstr pending worker assignment, $numworkers worker%s busy", $numworkers==1?"":"s";
 

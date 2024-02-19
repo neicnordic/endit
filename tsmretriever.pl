@@ -38,6 +38,25 @@ use Endit qw(%conf readconf printlog readconfoverride writejson writeprom);
 # Variables
 $Endit::logname = 'tsmretriever';
 my $skipdelays = 0; # Set by USR1 signal handler
+# Count successfully processed files.
+my $staged_bytes = 0;
+my $staged_files = 0;
+my $stage_retries = 0;
+
+my %promtypehelp = (
+	retriever_staged_bytes => {
+		type => 'counter',
+		help => 'The number of bytes successfully staged.',
+	},
+	retriever_staged_files => {
+		type => 'counter',
+		help => 'The number of files successfully staged.',
+	},
+	retriever_stage_retries => {
+		type => 'counter',
+		help => 'The number of times a stage operation has been retried.',
+	},
+);
 
 # Turn off output buffering
 $| = 1;
@@ -240,6 +259,48 @@ sub checkfree() {
 	return (CF_OK, $r->{bavail});
 }
 
+# Handle incrementing the stage stats counters.
+sub handle_stage_stats (@) {
+	my ($w, $rc) = @_;
+
+	while(my ($k, $v) = each %{$w->{files}}) {
+		next if ($w->{counted}{$k});
+
+		if(defined($rc) && $rc == 0) {
+			# The easy case, all went well
+			$staged_bytes += $v;
+			$staged_files++;
+			# Shouldn't really be needed as we should only be
+			# called once with $rc defined.
+			$w->{counted}{$k} = 1;
+			next;
+		}
+
+		my $if = "$conf{dir_in}/$k";
+		my $ifsize = (stat($if))[7];
+		if(defined($ifsize) && $ifsize == $v) {
+			# Staged successfully.
+			$staged_bytes += $v;
+			$staged_files++;
+			$w->{counted}{$k} = 1;
+			next;
+		}
+
+		if($rc) {
+			my $rf = "$conf{dir_request}/$k";
+			if(-f $rf) {
+				# We know this file didn't get staged and needs
+				# to be retried.
+				$stage_retries++;
+				# Shouldn't really be needed as we should only
+				# be called once with $rc defined.
+				$w->{counted}{$k} = 1;
+				next;
+			}
+		}
+	}
+}
+
 my $tapelistmodtime=0;
 my $tapelist = {};
 my %reqset;
@@ -299,11 +360,9 @@ while(1) {
 	# Check if any dsmc workers are done
 	if(@workers) {
 		my $timer = 0;
-		my $atmax = 0;
-		my $backoffstate = (checkfree())[0];
-		$atmax = 1 if(scalar(@workers) >= $conf{'retriever_maxworkers'});
 
 		while($timer < $sleeptime) {
+			my $oldwcount = scalar(@workers);
 			@workers = map {
 				my $w = $_;
 				my $wres = waitpid($w->{pid}, WNOHANG);
@@ -311,41 +370,39 @@ while(1) {
 				if ($wres == $w->{pid}) {
 					# Child is done
 					$w->{pid} = undef;
-					# Intentionally not caring about
-					# results. We'll retry and if stuff is
-					# really broken, the admins will notice
-					# from hanging restore requests anyway.
 					if(!$conf{debug}) {
 						if(!unlink($w->{listfile})) {
 							printlog "unlink '$w->{listfile}' failed: $!";
 						}
 					}
-				} 
+					# Also revalidate cached requests.
+					%reqset=();
+					# Child status is only used for
+					# metrics, unprocessed files are
+					# retried and if stuff is really
+					# broken, the admins will notice from
+					# hanging restore requests anyway.
+					handle_stage_stats($w, $rc);
+				}
+				else {
+					handle_stage_stats($w, undef);
+				}
 				$w;
 			} @workers;
 			@workers = grep { $_->{pid} } @workers;
 
-			# Break early if we were waiting for a worker
-			# to be freed up.
-			if($atmax && scalar(@workers) < $conf{'retriever_maxworkers'})
-			{
+			# Break early as soon as the number of workers changed
+			# in order to update statistics.
+			if(scalar(@workers) != $oldwcount) {
 				last;
 			}
 
-			# Also break early if backoff state changes
-			if($backoffstate != (checkfree())[0]) {
-				last;
-			}
-
-			my $st = $sleeptime;
-			if($atmax || $backoffstate != CF_OK) {
-				# Check frequently if waiting for free worker
-				# or if we might run out of space forcing us
-				# to kill the current workers.
-				$st = 1;
-			}
-			$timer += $st;
-			sleep($st);
+			# Check often for changed worker state. The dcache
+			# endit provider GRACE_PERIOD is 1000 ms (1s), so if we
+			# check more often than that we'll get a somewhat
+			# accurate view of staging progress metrics.
+			$timer += 0.5;
+			usleep(500_000); # 0.5s
 		}
 	}
 	else {
@@ -353,6 +410,10 @@ while(1) {
 		sleep $sleeptime;
 	}
 	$sleeptime = $conf{sleeptime};
+
+	$currstats{'retriever_staged_bytes'} = $staged_bytes;
+	$currstats{'retriever_staged_files'} = $staged_files;
+	$currstats{'retriever_stage_retries'} = $stage_retries;
 
 	readconfoverride('retriever');
 
@@ -378,8 +439,8 @@ while(1) {
 		foreach my $req (@requests) {
 			if($reqset{$req} && $reqset{$req}->{endit_req_ct} + $conf{sleeptime} < $cachetime) {
 				# Cached, check if we need to revalidate.
-				my $reqfilename="$conf{dir_request}/$req";
-				my $ts =(stat $reqfilename)[9];
+				my $req_filename="$conf{dir_request}/$req";
+				my $ts =(stat $req_filename)[9];
 				if(!$ts) {
 					printlog "Invalidating $req: $!" if($conf{debug});
 					delete $reqset{$req};
@@ -442,8 +503,6 @@ while(1) {
 	}
 	$currstats{'retriever_working_gib'} = sum0(grep {$_>0} values %working)/(1024*1024*1024);
 	$currstats{'retriever_working_files'} = scalar keys %working;
-
-
 	$currstats{'retriever_requests_files'} = scalar(keys(%reqset));
 	$currstats{'retriever_requests_gib'} = $requests_bytes/(1024*1024*1024);
 	$currstats{'retriever_busyworkers'} = scalar(@workers);
@@ -453,7 +512,7 @@ while(1) {
 		$currstats{'retriever_in_avail_gib'} = $in_avail_gib;
 	}
 	writejson(\%currstats, "$conf{'desc-short'}-retriever-stats.json");
-	writeprom(\%currstats, "$conf{'desc-short'}-retriever-stats.prom");
+	writeprom(\%currstats, "$conf{'desc-short'}-retriever-stats.prom", \%promtypehelp);
 
 	# If any requests and free worker
 	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {
