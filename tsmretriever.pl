@@ -44,18 +44,59 @@ my $staged_files = 0;
 my $stage_retries = 0;
 
 my %promtypehelp = (
+	retriever_hintfile_mtime => {
+		type => 'gauge',
+		help => 'Last modification timestamp of hint file',
+	},
+	retriever_hintfile_entries => {
+		type => 'gauge',
+		help => 'Number of hintfile entries',
+	},
 	retriever_staged_bytes => {
 		type => 'counter',
-		help => 'The number of bytes successfully staged.',
+		help => 'Bytes successfully staged',
 	},
 	retriever_staged_files => {
 		type => 'counter',
-		help => 'The number of files successfully staged.',
+		help => 'Files successfully staged',
 	},
 	retriever_stage_retries => {
 		type => 'counter',
-		help => 'The number of times a stage operation has been retried.',
+		help => 'How many times a stage operation has been retried',
 	},
+	retriever_working_bytes => {
+		type => 'gauge',
+		help => 'Total size of files currently being staged by workers',
+	},
+	retriever_working_files => {
+		type => 'gauge',
+		help => 'Number of files currently being staged by workers',
+	},
+	retriever_requests_bytes => {
+		type => 'gauge',
+		help => 'Total size of files in stage request queue',
+	},
+	retriever_requests_files => {
+		type => 'gauge',
+		help => 'Number of files in stage request queue',
+	},
+	retriever_in_avail_bytes => {
+		type => 'gauge',
+		help => 'Staging in/ directory free space',
+	},
+	retriever_busyworkers => {
+		type => 'gauge',
+		help => 'Number of busy workers',
+	},
+	retriever_maxworkers => {
+		type => 'gauge',
+		help => 'Maximum number of workers',
+	},
+	retriever_time => {
+		type => 'gauge',
+		help => 'Unix time when these metrics were last updated',
+	},
+
 );
 
 # Turn off output buffering
@@ -223,36 +264,44 @@ sub readtapelist() {
 	}
 }
 
+# Convert bytes to GiB
+sub to_gib($) {
+	my($bytes) = @_;
+
+	return($bytes/(1024*1024*1024));
+}
+
 use constant {
 	CF_OK	=> 0,
 	CF_BACKLOG => 1,
 	CF_FULL	=> 2,
 };
-# Returns: (state, avail_gib) where state:
+# Returns: (state, avail_bytes) where state:
 #  CF_OK      - Usage lower than any thresholds
 #  CF_FULL    - Usage larger than retriever_killthreshold.
 #  CF_BACKLOG - Usage larger than retriever_backlogthreshold.
 sub checkfree() {
 
-	# Work with GiB sized blocks
-	my $r =  df($conf{dir_in}, 1024*1024*1024);
+	# Work with byte sized blocks
+	my $r =  df($conf{dir_in}, 1);
 
 	return(CF_BACKLOG) unless($r);
 
-	if($r->{blocks} < $conf{retriever_buffersize}) {
+	my $blocks_gib = to_gib($r->{blocks});
+	if($blocks_gib < $conf{retriever_buffersize}) {
 		# FS is smaller than buffersize
-		warn "$conf{dir_in} size $r->{blocks} GiB smaller than configured buffer of $conf{retriever_buffersize} GiB, trying to select a suitable size.";
-		$conf{retriever_buffersize} = $r->{blocks} / 2;
+		warn "$conf{dir_in} size $blocks_gib GiB smaller than configured buffer of $conf{retriever_buffersize} GiB, trying to select a suitable size.";
+		$conf{retriever_buffersize} = $blocks_gib / 2;
 		warn "Chose $conf{retriever_buffersize} GiB buffer size";
 	}
 
 	my $killsize = max(1, $conf{retriever_buffersize} * (1-($conf{retriever_killthreshold}/100)) );
 	my $backlogsize = max(2, $conf{retriever_buffersize} * (1-($conf{retriever_backlogthreshold}/100)) );
 
-	if($r->{bavail} < $killsize) {
+	if(to_gib($r->{bavail}) < $killsize) {
 		return (CF_FULL, $r->{bavail});
 	}
-	elsif($r->{bavail} < $backlogsize) {
+	elsif(to_gib($r->{bavail}) < $backlogsize) {
 		return (CF_BACKLOG, $r->{bavail});
 	}
 
@@ -417,13 +466,13 @@ while(1) {
 
 	readconfoverride('retriever');
 
-	my ($dobackoff, $in_avail_gib) = checkfree();
-	my $in_fill_pct = ($conf{retriever_buffersize}-$in_avail_gib) / $conf{retriever_buffersize};
+	my ($dobackoff, $in_avail_bytes) = checkfree();
+	my $in_fill_pct = ($conf{retriever_buffersize}-to_gib($in_avail_bytes)) / $conf{retriever_buffersize};
 	$in_fill_pct = int(max($in_fill_pct, 0)*100);
-	printlog sprintf("$conf{dir_in} avail %.1f GiB, fill $in_fill_pct %%, dobackoff: $dobackoff", $in_avail_gib) if($conf{debug});
+	printlog sprintf("$conf{dir_in} avail %d bytes, fill $in_fill_pct %%, dobackoff: $dobackoff", $in_avail_bytes) if($conf{debug});
 
 	if($dobackoff == CF_FULL && @workers) {
-		printlog sprintf("Filesystem $conf{dir_in} space low, avail %.1f GiB, fill $in_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", $in_avail_gib);
+		printlog sprintf("Filesystem $conf{dir_in} space low, avail %.1f GiB, fill $in_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", to_gib($in_avail_bytes));
 		killchildren();
 		sleep(1);
 		next;
@@ -501,15 +550,15 @@ while(1) {
 			$lastmount{$w->{tape}} = time();
 		}
 	}
-	$currstats{'retriever_working_gib'} = sum0(grep {$_>0} values %working)/(1024*1024*1024);
+	$currstats{'retriever_working_bytes'} = sum0(grep {$_>0} values %working);
 	$currstats{'retriever_working_files'} = scalar keys %working;
 	$currstats{'retriever_requests_files'} = scalar(keys(%reqset));
-	$currstats{'retriever_requests_gib'} = $requests_bytes/(1024*1024*1024);
+	$currstats{'retriever_requests_bytes'} = $requests_bytes;
 	$currstats{'retriever_busyworkers'} = scalar(@workers);
 	$currstats{'retriever_maxworkers'} = $conf{'retriever_maxworkers'};
 	$currstats{'retriever_time'} = time();
-	if(defined($in_avail_gib)) {
-		$currstats{'retriever_in_avail_gib'} = $in_avail_gib;
+	if(defined($in_avail_bytes)) {
+		$currstats{'retriever_in_avail_bytes'} = $in_avail_bytes;
 	}
 	writejson(\%currstats, "$conf{'desc-short'}-retriever-stats.json");
 	writeprom(\%currstats, "$conf{'desc-short'}-retriever-stats.prom", \%promtypehelp);
@@ -517,7 +566,7 @@ while(1) {
 	# If any requests and free worker
 	if (%reqset && scalar(@workers) < $conf{'retriever_maxworkers'}) {
 		if($dobackoff != CF_OK) {
-			printlog sprintf("Filesystem $conf{dir_in} avail %.1f GiB, fill $in_fill_pct %% > fill backlogthreshold $conf{retriever_backlogthreshold} %%, not starting more workers", $in_avail_gib) if($conf{debug} || $conf{verbose});
+			printlog sprintf("Filesystem $conf{dir_in} avail %.1f GiB, fill $in_fill_pct %% > fill backlogthreshold $conf{retriever_backlogthreshold} %%, not starting more workers", to_gib($in_avail_bytes)) if($conf{debug} || $conf{verbose});
 			next;
 		}
 		# Make list blacklisting pending tapes
@@ -610,7 +659,7 @@ while(1) {
 			}
 			$lastmount{$tape} = time;
 
-			my $lfstats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), scalar(keys(%lfinfo)));
+			my $lfstats = sprintf("%.2f GiB in %d files", to_gib($lfsize), scalar(keys(%lfinfo)));
 			$lfstats .= ", oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
 			my $lffiles = "";
 			if($conf{verbose}) {
@@ -714,7 +763,7 @@ while(1) {
 				if($? == 0) {
 					my $duration = time()-$execstart;
 					$duration = 1 unless($duration);
-					my $sizestats = sprintf("%.2f GiB in %d files", $lfsize/(1024*1024*1024), scalar(keys(%lfinfo)));
+					my $sizestats = sprintf("%.2f GiB in %d files", to_gib($lfsize), scalar(keys(%lfinfo)));
 					my $speedstats = sprintf("%.2f MiB/s (%.2f files/s)", $lfsize/(1024*1024*$duration), scalar(keys(%lfinfo))/$duration);
 					printlog "Retrieve operation from volume $tape successful, $sizestats took $duration seconds, average rate $speedstats";
 					exit 0;

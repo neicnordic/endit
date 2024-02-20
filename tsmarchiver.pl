@@ -40,15 +40,51 @@ my $dsmcpid; # used by spawn_worker() signal handler
 my %promtypehelp = (
 	archiver_flushed_bytes => {
 		type => 'counter',
-		help => 'The number of bytes successfully flushed.',
+		help => 'Bytes successfully flushed',
 	},
 	archiver_flushed_files => {
 		type => 'counter',
-		help => 'The number of files successfully flushed.',
+		help => 'Files successfully flushed',
 	},
 	archiver_flush_retries => {
 		type => 'counter',
-		help => 'The number of times a flush operation has been retried.',
+		help => 'How many times a flush operation has been retried',
+	},
+	archiver_usage_bytes => {
+		type => 'gauge',
+		help => 'Bytes used by all files that are candidates to be flushed',
+	},
+	archiver_usage_files => {
+		type => 'gauge',
+		help => 'Number of files that are candidates to be flushed',
+	},
+	archiver_working_bytes => {
+		type => 'gauge',
+		help => 'Bytes used by files currently being flushed by workers',
+	},
+	archiver_working_files => {
+		type => 'gauge',
+		help => 'Number of files currently being flushed by workers',
+	},
+	archiver_pending_bytes => {
+		type => 'gauge',
+		help => 'Bytes used by files pending worker assignment',
+	},
+	archiver_pending_files => {
+		type => 'gauge',
+		help => 'Number of files pending worker assignment',
+	},
+	archiver_busyworkers => {
+		type => 'gauge',
+		help => 'Number of busy workers',
+	},
+	archiver_maxworkers => {
+		type => 'gauge',
+		help => 'Maximum number of workers',
+	},
+	archiver_time => {
+		type => 'gauge',
+		help => 'Unix time when these metrics were last updated',
 	},
 );
 
@@ -62,8 +98,16 @@ sub killchildren() {
 }
 
 
-# Return filessystem usage (gigabytes) given a hash reference containing
-# contents and stat() size info
+# Convert bytes to GiB
+sub to_gib($) {
+	my($bytes) = @_;
+
+	return($bytes/(1024*1024*1024));
+}
+
+
+# Return filessystem usage in bytes given a hash reference containing contents
+# and stat() size info.
 sub getusage {
 	my ($href) = @_;
 
@@ -74,7 +118,7 @@ sub getusage {
                 $size += $v->{size}
         }
 
-        return $size/(1024*1024*1024); # GiB
+        return $size; # bytes
 }
 
 
@@ -99,7 +143,7 @@ sub getdir {
 }
 
 sub spawn_worker {
-	my($msg, $filelist, $description, $usage_gib, $numfiles) = @_;
+	my($msg, $filelist, $description, $usage_bytes, $numfiles) = @_;
 
 	my $pid = fork();
 
@@ -162,7 +206,7 @@ sub spawn_worker {
 	if($? == 0) {
 		my $duration = time()-$execstart;
 		$duration = 1 unless($duration);
-		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", ${usage_gib}*1024/$duration, $numfiles/$duration);
+		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", ${usage_bytes}/(1024*1024)/$duration, $numfiles/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
 		if($conf{debug}) {
 			printlog "dsmc output: " . join("\n", @out);
@@ -305,8 +349,8 @@ while(1) {
 	# Use current total usage for trigger thresholds, easier for humans
 	# to figure out what values to set.
 	my $allusage = getusage(\%files);
-	my $allusagestr = sprintf("%.03f GiB in %d file%s", $allusage, scalar keys %files, (scalar keys %files)==1?"":"s");
-	$currstats{'archiver_usage_gib'} = $allusage;
+	my $allusagestr = sprintf("%.03f GiB in %d file%s", to_gib($allusage), scalar keys %files, (scalar keys %files)==1?"":"s");
+	$currstats{'archiver_usage_bytes'} = $allusage;
 	$currstats{'archiver_usage_files'} = scalar keys %files;
 
 	# Filter out files currently being worked on and gather stats
@@ -319,12 +363,12 @@ while(1) {
 			}
 		}
 	}
-	$currstats{'archiver_working_gib'} = getusage(\%working);
+	$currstats{'archiver_working_bytes'} = getusage(\%working);
 	$currstats{'archiver_working_files'} = scalar keys %working;
 
 	my $pending = getusage(\%files);
-	my $pendingstr = sprintf("%.03f GiB in %d file%s", $pending, scalar keys %files, (scalar keys %files)==1?"":"s");
-	$currstats{'archiver_pending_gib'} = $pending;
+	my $pendingstr = sprintf("%.03f GiB in %d file%s", to_gib($pending), scalar keys %files, (scalar keys %files)==1?"":"s");
+	$currstats{'archiver_pending_bytes'} = $pending;
 	$currstats{'archiver_pending_files'} = scalar keys %files;
 	# Include number of workers and current hour in state string.
 	my $statestr = "$allusagestr $pendingstr $numworkers " . (localtime(time()))[2];
@@ -348,7 +392,7 @@ while(1) {
 			$currstats{'archiver_maxworkers'} = $i;
 		}
 
-		if($allusage > $conf{"${at}_usage"}) {
+		if(to_gib($allusage) > $conf{"${at}_usage"}) {
 			$usagelevel = $i;
 			# Trigger either when at a higher level than the number of workers, or when
 			# we're between the last trigger threshold and the next lower threshold.
@@ -359,7 +403,7 @@ while(1) {
 				# The exception is when we're already at this number of
 				# workers but one or more has just exited, then we assume
 				# tape(s) are already mounted and cheap to continue using.
-				if($pending > $conf{'archiver_threshold1_usage'} || $lasttrigger >= $i) {
+				if(to_gib($pending) > $conf{'archiver_threshold1_usage'} || $lasttrigger >= $i) {
 					# Don't go lower than our previous trigger level
 					if($lasttrigger && $i < $lasttrigger) {
 						$triggerlevel = $lasttrigger;
@@ -489,22 +533,20 @@ while(1) {
 	# FIXME: Future improvement is to have more strict adherence to the
 	# temporal affinity and not split chunks with similar timestamps
 	# between tapes/workers as we might do now...
-	my $spawnsize = $allusage/$triggerlevel + 1; # Add 1 to cater for rounding error on single run.
+	my $spawnsize = $allusage/$triggerlevel + 4096; # Add 4096 to cater for rounding error on single run.
 	while($tospawn--) {
 		my @myfsorted;
 		my $mytot = 0;
 
 		# Chomp off as much as we can chew...
-		while($mytot/(1024*1024*1024) <= $spawnsize) {
+		while($mytot <= $spawnsize) {
 			my $f = shift @fsorted;
 			last unless($f);
 			$mytot += $files{$f}{size};
 			push @myfsorted, $f;
 		}
 
-		$mytot /= (1024*1024*1024); # GiB
-
-		my $logstr = sprintf("Spawning worker #%d to archive %.03f GiB in %d file%s from $conf{dir_out}", scalar(@workers)+1, $mytot, scalar(@myfsorted), scalar(@myfsorted)==1?"":"s");
+		my $logstr = sprintf("Spawning worker #%d to archive %.03f GiB in %d file%s from $conf{dir_out}", scalar(@workers)+1, to_gib($mytot), scalar(@myfsorted), scalar(@myfsorted)==1?"":"s");
 		if($conf{verbose}) {
 			$logstr .= " (files: " . join(" ", @myfsorted) . ")";
 		}
