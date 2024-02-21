@@ -43,6 +43,13 @@ my $staged_bytes = 0;
 my $staged_files = 0;
 my $stage_retries = 0;
 
+# Backoff state, returned by checkfree()
+use constant {
+	CF_OK	=> 0,
+	CF_BACKLOG => 1,
+	CF_FULL	=> 2,
+};
+
 my %promtypehelp = (
 	retriever_hintfile_mtime => {
 		type => 'gauge',
@@ -83,6 +90,10 @@ my %promtypehelp = (
 	retriever_in_avail_bytes => {
 		type => 'gauge',
 		help => 'Staging in/ directory free space',
+	},
+	retriever_backoffstate => {
+		type => 'gauge',
+		help => "${\CF_OK} - No backoff, ${\CF_BACKLOG} - Not starting new workers, ${\CF_FULL} - Emergency break with all workers killed",
 	},
 	retriever_busyworkers => {
 		type => 'gauge',
@@ -274,11 +285,6 @@ sub to_gib($) {
 	return($bytes/(1024*1024*1024));
 }
 
-use constant {
-	CF_OK	=> 0,
-	CF_BACKLOG => 1,
-	CF_FULL	=> 2,
-};
 # Returns: (state, avail_bytes) where state:
 #  CF_OK      - Usage lower than any thresholds
 #  CF_FULL    - Usage larger than retriever_killthreshold.
@@ -475,6 +481,8 @@ while(1) {
 	my $in_fill_pct = ($conf{retriever_buffersize}-to_gib($in_avail_bytes)) / $conf{retriever_buffersize};
 	$in_fill_pct = int(max($in_fill_pct, 0)*100);
 	printlog sprintf("$conf{dir_in} avail %d bytes, fill $in_fill_pct %%, dobackoff: $dobackoff", $in_avail_bytes) if($conf{debug});
+
+	$currstats{'retriever_backoffstate'} = $dobackoff;
 
 	if($dobackoff == CF_FULL && @workers) {
 		printlog sprintf("Filesystem $conf{dir_in} space low, avail %.1f GiB, fill $in_fill_pct %% > fill killthreshold $conf{retriever_killthreshold} %%, killing workers", to_gib($in_avail_bytes));
