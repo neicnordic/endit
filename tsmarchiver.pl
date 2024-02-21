@@ -86,6 +86,10 @@ my %promtypehelp = (
 		type => 'gauge',
 		help => 'Unix time when these metrics were last updated',
 	},
+	archiver_starttime => {
+		type => 'gauge',
+		help => 'Unix time when this process was started',
+	},
 );
 
 ##################
@@ -276,6 +280,7 @@ my $desclong="";
 if($conf{'desc-long'}) {
 	$desclong = " $conf{'desc-long'}";
 }
+my $starttime = time();
 printlog("$0: Starting$desclong...");
 
 my $timer;
@@ -340,6 +345,7 @@ while(1) {
 	my %files;
 	my %currstats;
 
+	$currstats{'archiver_starttime'} = $starttime;
 	$currstats{'archiver_flushed_bytes'} = $flushed_bytes;
 	$currstats{'archiver_flushed_files'} = $flushed_files;
 	$currstats{'archiver_flush_retries'} = $flush_retries;

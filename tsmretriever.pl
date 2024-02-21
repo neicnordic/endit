@@ -96,7 +96,10 @@ my %promtypehelp = (
 		type => 'gauge',
 		help => 'Unix time when these metrics were last updated',
 	},
-
+	retriever_starttime => {
+		type => 'gauge',
+		help => 'Unix time when this process was started',
+	},
 );
 
 # Turn off output buffering
@@ -359,6 +362,7 @@ my $desclong="";
 if($conf{'desc-long'}) {
 	$desclong = " $conf{'desc-long'}";
 }
+my $starttime = time();
 printlog("$0: Starting$desclong...");
 
 # Clean up stale remnants left by earlier crashes/restarts, do the request list
@@ -371,6 +375,7 @@ my $sleeptime = 1; # Want to start with quickly doing a full cycle.
 # Warning: Infinite loop. Program may not stop.
 while(1) {
 	my %currstats;
+	$currstats{'retriever_starttime'} = $starttime;
 
 	# Clean in dir periodically
 	if($lastclean + 86400 < time()) {
