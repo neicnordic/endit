@@ -27,7 +27,7 @@ use File::Basename;
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);
-use Endit qw(%conf readconf printlog);
+use Endit qw(%conf readconf printlog getgitversiontag);
 
 $Endit::logname = 'tsmtapehints';
 
@@ -68,7 +68,12 @@ my $desclong="";
 if($conf{'desc-long'}) {
 	$desclong = " $conf{'desc-long'}";
 }
-printlog("$0: Starting$desclong...");
+my $verstr = "";
+my $vertag = getgitversiontag();
+if($vertag) {
+	$verstr = " version $vertag";
+}
+printlog("$0$verstr: Starting$desclong...");
 
 my $hintfile;
 if(exists $conf{retriever_hintfile}) {

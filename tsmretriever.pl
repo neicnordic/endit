@@ -32,7 +32,7 @@ use List::Util qw(min max sum0);
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog readconfoverride writejson writeprom);
+use Endit qw(%conf readconf printlog readconfoverride writejson writeprom getgitversiontag);
 
 ###########
 # Variables
@@ -110,6 +110,10 @@ my %promtypehelp = (
 	retriever_starttime => {
 		type => 'gauge',
 		help => 'Unix time when this process was started',
+	},
+	retriever_info => {
+		type => 'gauge',
+		help => 'Version',
 	},
 );
 
@@ -368,8 +372,14 @@ my $desclong="";
 if($conf{'desc-long'}) {
 	$desclong = " $conf{'desc-long'}";
 }
+my $verstr = "";
+my $vertag = getgitversiontag();
+if($vertag) {
+	$verstr = " version $vertag";
+	$promtypehelp{'retriever_info'}{labels}{gitversiontag} = $vertag;
+}
 my $starttime = time();
-printlog("$0: Starting$desclong...");
+printlog("$0$verstr: Starting$desclong...");
 
 # Clean up stale remnants left by earlier crashes/restarts, do the request list
 # directory only on startup.
@@ -382,6 +392,10 @@ my $sleeptime = 1; # Want to start with quickly doing a full cycle.
 while(1) {
 	my %currstats;
 	$currstats{'retriever_starttime'} = $starttime;
+	if($vertag) {
+		# Static label contains actual version string
+		$currstats{'retriever_info'} = 1;
+	}
 
 	# Clean in dir periodically
 	if($lastclean + 86400 < time()) {

@@ -41,7 +41,7 @@ my $have_schedule_cron = eval
 
 # Add directory of script to module search path
 use lib dirname (__FILE__);
-use Endit qw(%conf readconf printlog readconfoverride);
+use Endit qw(%conf readconf printlog readconfoverride getgitversiontag);
 
 
 ###########
@@ -425,7 +425,12 @@ my $desclong="";
 if($conf{'desc-long'}) {
 	$desclong = " $conf{'desc-long'}";
 }
-printlog("$0: Starting$desclong...");
+my $verstr = "";
+my $vertag = getgitversiontag();
+if($vertag) {
+	$verstr = " version $vertag";
+}
+printlog("$0$verstr: Starting$desclong...");
 
 
 # Basic sanity-checking of deleter_queueprocinterval argument

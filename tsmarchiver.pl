@@ -28,7 +28,7 @@ use List::Util qw(min);
 # Add directory of script to module search path
 use lib dirname (__FILE__);
 
-use Endit qw(%conf readconf printlog readconfoverride writejson writeprom);
+use Endit qw(%conf readconf printlog readconfoverride writejson writeprom getgitversiontag);
 
 ###########
 # Variables
@@ -89,6 +89,10 @@ my %promtypehelp = (
 	archiver_starttime => {
 		type => 'gauge',
 		help => 'Unix time when this process was started',
+	},
+	archiver_info => {
+		type => 'gauge',
+		help => 'Version',
 	},
 );
 
@@ -280,8 +284,14 @@ my $desclong="";
 if($conf{'desc-long'}) {
 	$desclong = " $conf{'desc-long'}";
 }
+my $verstr = "";
+my $vertag = getgitversiontag();
+if($vertag) {
+	$verstr = " version $vertag";
+	$promtypehelp{'archiver_info'}{labels}{gitversiontag} = $vertag;
+}
 my $starttime = time();
-printlog("$0: Starting$desclong...");
+printlog("$0$verstr: Starting$desclong...");
 
 my $timer;
 my $laststatestr = "";
@@ -349,6 +359,11 @@ while(1) {
 	$currstats{'archiver_flushed_bytes'} = $flushed_bytes;
 	$currstats{'archiver_flushed_files'} = $flushed_files;
 	$currstats{'archiver_flush_retries'} = $flush_retries;
+	if($vertag) {
+		# Static label contains actual version string
+		$currstats{'archiver_info'} = 1;
+	}
+
 
 	getdir($conf{dir_out}, \%files);
 

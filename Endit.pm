@@ -29,7 +29,7 @@ our (@ISA, @EXPORT_OK);
 BEGIN {
 	require Exporter;
 	@ISA = qw(Exporter);
-	@EXPORT_OK = qw(%conf readconf printlog readconfoverride writejson writeprom);
+	@EXPORT_OK = qw(%conf readconf printlog readconfoverride writejson writeprom getgitversiontag);
 }
 
 
@@ -368,7 +368,13 @@ sub writesampleconf() {
 	chmod(0666 & ~umask(), $fn) || die "chmod $fn: $!";
 
 	print $fh "# ENDIT daemons sample configuration file.\n";
-	print $fh "# Generated on " . scalar(localtime(time())) . "\n";
+	print $fh "# Generated on " . scalar(localtime(time()));
+	my $ver = getgitversiontag();
+	if($ver) {
+		my $me = fileparse(__FILE__);
+		print $fh " by $me version $ver";
+	}
+	print $fh "\n";
 	print $fh "\n";
 	print $fh "# Note, comments have to start with # in the first character of the line\n";
 	print $fh "# Otherwise, simple \"key: value\" pairs\n";
@@ -618,8 +624,12 @@ sub writeprom {
 		print $fh "# HELP endit_${k} ENDIT $logname $help.\n";
 		my $type = $typehelp->{$k}{type} // "gauge";
 		print $fh "# TYPE endit_${k} $type\n";
+		my $l = "hsm=\"$conf{'desc-short'}\"";
+		foreach my $lk (sort keys %{$typehelp->{$k}{labels}}) {
+			$l .= ",$lk=\"$typehelp->{$k}{labels}{$lk}\"";
+		}
 
-		print $fh "endit_${k}{hsm=\"$conf{'desc-short'}\"} $ref->{$k}\n";
+		print $fh "endit_${k}{$l} $ref->{$k}\n";
 	}
 
         if(!close($fh)) {
@@ -639,6 +649,24 @@ sub writeprom {
 	printlog "Wrote $conf{currstatsdir}/$name" if($conf{debug});
 
 	return 1;
+}
+
+
+# Tries to return a version tag to be used in metrics/logs, this is only
+# supported when deployed via a git checkout.
+sub getgitversiontag {
+	my $mydir = dirname (__FILE__);
+
+	my $ver;
+
+	if(-d "$mydir/.git") {
+		$ver = `git -C '$mydir' --git-dir='$mydir/.git' describe --tags --dirty`;
+	}
+
+	if($ver) {
+		chomp $ver;
+		return $ver;
+	}
 }
 
 1;
