@@ -472,8 +472,14 @@ sub readconf() {
 	# Verify that required subdirs are present and writable
 	foreach my $subdir (qw{in out request requestlists trash queue}) {
 		my $sd = "$conforig{dir}/$subdir";
-		if(! -d $sd && !mkdir($sd)) {
-			die "mkdir $sd failed: $!";
+		if(-e $sd && ! -d $sd) {
+			die "$sd exists but is not a directory!";
+		}
+		if(! -d $sd) {
+			printlog "Creating missing directory $sd";
+			if(!mkdir($sd) && !$!{EEXIST}) {
+				die "mkdir $sd failed: $!";
+			}
 		}
 		my($fh, $fn) = tempfile(".endit.XXXXXX", DIR=>"$sd"); # croak():s on error
 
