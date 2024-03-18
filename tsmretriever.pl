@@ -561,12 +561,12 @@ while(1) {
 		%reqset=();
 	}
 
-	printlog scalar(%reqset) . " entries from $conf{dir_request} cached" if($conf{debug});
+	printlog scalar(keys(%reqset)) . " entries from $conf{dir_request} cached" if($conf{debug});
 
 	# Gather working stats
 	my %working;
 	foreach my $w (@workers) {
-		printlog "Worker $w->{pid} tape $w->{tape} listfile $w->{listfile} with " . scalar(%{$w->{files}}) . " files" if($conf{debug});
+		printlog "Worker $w->{pid} tape $w->{tape} listfile $w->{listfile} with " . scalar(keys(%{$w->{files}})) . " files" if($conf{debug});
 		while (my($k,$v) = each %{$w->{files}}) {
 			if($reqset{$k}) {
 				$working{$k} = $v;
@@ -634,7 +634,7 @@ while(1) {
 			}
 
 			if($tape ne 'default' && $job->{$tape}->{tsoldest} > time()-$conf{retriever_reqlistfillwaitmax} && $job->{$tape}->{tsnewest} > time()-$conf{retriever_reqlistfillwait}) {
-				my $msg = "volume $tape, request list " . (scalar(%{$job->{$tape}})-2) . " entries and still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
+				my $msg = "volume $tape, request list " . (scalar(keys(%{$job->{$tape}}))-2) . " entries and still filling, oldest " . strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsoldest})) . " newest " .  strftime("%Y-%m-%d %H:%M:%S",localtime($job->{$tape}->{tsnewest}));
 				if($skipdelays) {
 					printlog "Proceeding due to USR1 signal despite $msg";
 				}
