@@ -666,7 +666,7 @@ sub getgitversiontag {
 	my $ver;
 
 	if(-d "$mydir/.git") {
-		$ver = `git -C '$mydir' --git-dir='$mydir/.git' describe --tags --dirty`;
+		$ver = `git --work-tree='$mydir' --git-dir='$mydir/.git' describe --tags --dirty`;
 	}
 
 	if($ver) {
