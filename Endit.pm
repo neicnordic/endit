@@ -470,7 +470,7 @@ sub readconf() {
 		die "Required directory $conforig{dir} missing, exiting";
 	}
 	# Verify that required subdirs are present and writable
-	foreach my $subdir (qw{in out request requestlists trash queue}) {
+	foreach my $subdir (qw{in out request requestlists trash trash/queue}) {
 		my $sd = "$conforig{dir}/$subdir";
 		if(-e $sd && ! -d $sd) {
 			die "$sd exists but is not a directory!";
@@ -487,7 +487,31 @@ sub readconf() {
 		unlink($fn);
 
 		# Provide subdirs as variables
-		$conforig{"dir_$subdir"} = $sd;
+		my $sdvar = $subdir;
+		$sdvar =~ s/\//_/g;
+		$conforig{"dir_$sdvar"} = $sd;
+	}
+
+	# FIXME: Remove this cleanup for the trash/queue dir misplacement bug
+	# sometime in the future.
+	if(-d "$conforig{dir}/queue") {
+		# Since we might have multiple daemons starting at once they
+		# might trample on eachother, just add a sufficiently large
+		# random delay and hope it works in most cases.
+		usleep(int(rand(10_000_000)));
+
+		# Move queued deletions from the misplaced queue directory
+		# to the correct new one...
+		if(opendir(my $td, "$conforig{dir}/queue")) {
+			printlog "Moving files in $conforig{dir}/queue/ to $conforig{'dir_trash_queue'}/";
+			my @files = grep { /^[0-9A-Fa-f]+$/ } readdir($td);
+			closedir($td);
+			foreach my $f (@files) {
+				rename("$conforig{dir}/queue/$f", "$conforig{'dir_trash_queue'}/$f") or warn "move $conforig{dir}/queue/$f to $conforig{'dir_trash_queue'}: $!";
+			}
+			rmdir("$conforig{dir}/queue") or warn "rmdir $conforig{dir}/queue: $!";
+		}
+
 	}
 
 	if(-d $conforig{currstatsdir}) {

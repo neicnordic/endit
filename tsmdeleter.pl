@@ -212,7 +212,7 @@ sub addtoqueue
 		# Might have a corner case with a tight loop causing a file
 		# collision, so just handle that.
 		my $now = time();
-		$fn = "$conf{dir_queue}/$now";
+		$fn = "$conf{dir_trash_queue}/$now";
 		sleep(1) if(-f $fn);
 	} while(-f $fn);
 
@@ -265,7 +265,7 @@ sub processqueue
 {
 	printlog "Processing deletion queue start" if($conf{debug});
 
-	opendir(my $td, $conf{dir_queue}) || die "opendir $conf{dir_queue}: $!";
+	opendir(my $td, $conf{dir_trash_queue}) || die "opendir $conf{dir_trash_queue}: $!";
 	my @qfiles = grep { /^[0-9]+$/ } readdir($td);
 	closedir($td);
 
@@ -274,8 +274,8 @@ sub processqueue
 	foreach my $qf (@qfiles) {
                 local $/; # slurp whole file
 		my $qfd;
-                if(!open $qfd, '<', "$conf{dir_queue}/$qf") {
-			warn "Opening $conf{dir_queue}/$qf: $!";
+                if(!open $qfd, '<', "$conf{dir_trash_queue}/$qf") {
+			warn "Opening $conf{dir_trash_queue}/$qf: $!";
 			next;
 		}
                 my $json_text = <$qfd>;
@@ -283,7 +283,7 @@ sub processqueue
                 close $qfd;
 		push @files, @{$qentries};
 		if($conf{debug}) {
-			printlog "Read " . scalar(@{$qentries}) . " entries from $conf{dir_queue}/$qf";
+			printlog "Read " . scalar(@{$qentries}) . " entries from $conf{dir_trash_queue}/$qf";
 		}
         }
 
@@ -346,8 +346,8 @@ sub processqueue
 
 	# Remove old queue files
 	foreach my $qf (@qfiles) {
-                if(!unlink("$conf{dir_queue}/$qf")) {
-			printlog "unlink '$conf{dir_queue}/$qf' failed: $!";
+                if(!unlink("$conf{dir_trash_queue}/$qf")) {
+			printlog "unlink '$conf{dir_trash_queue}/$qf' failed: $!";
 		}
 	}
 
