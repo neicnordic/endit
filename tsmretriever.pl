@@ -363,6 +363,30 @@ sub handle_stage_stats (@) {
 	}
 }
 
+# Fail a request with a message returned to the provider.
+sub fail_request (@) {
+	my($req, $msg) = @_;
+	my $req_filename="$conf{dir_request}/$req";
+	my $err_filename = "${req_filename}.err";
+
+	my ($ef, $errfile) = eval { tempfile("$req.err.XXXXXX", DIR=>"$conf{dir_request}", UNLINK=>0); };
+	if(!$ef) {
+		warn "Unable to open file in $conf{dir_request}: $@";
+		return undef;
+	}
+
+	chomp($msg);
+	print $ef "$msg\n";
+	close($ef) or warn "Closing $errfile; $!";
+
+	rename($errfile, $err_filename) or warn "rename $errfile -> $err_filename: $!";
+
+	# Ensure we don't retry this request now
+	unlink($req_filename);
+
+	return 1;
+}
+
 my $tapelistmodtime=0;
 my $tapelist = {};
 my %reqset;
@@ -760,6 +784,19 @@ while(1) {
 						# code from dsmc
 						if(/^AN\w\d\d\d\d\w/) {
 							push @errmsgs, $_;
+						}
+
+						# Detect attempts to retrieve files not available
+						# on the server and error out instead of retry.
+						if(/^ANS1345E No objects on the server match '.*\/([0-9A-Fa-f]+)'/) {
+							printlog "Got ANS1345E for request '$1'" if($conf{debug});
+							if(exists $lfinfo{$1}) {
+								printlog "Request $1 doesn't match any objects on server, reporting failure.";
+								fail_request($1, $_);
+							}
+							else {
+								warn "Got ANS1345E error for unknown request '$1'";
+							}
 						}
 
 						# Detect and save interactive
