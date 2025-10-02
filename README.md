@@ -171,10 +171,10 @@ Note that it's by design to have the directory and the statistics files
 world-readable, they contain no secrets and usually needs to be accessed
 by other processes such as the Prometheus `node_exporter`.
 
+## Tape hint file
+
 To enable concurrent retrieves from multiple tapes you must use a tape hint
 file, a file that provides info on which tape volume files are stored.
-
-## Tape hint file
 
 The tape hint file name to be loaded by `tsmretriever.pl` is set using the
 `retriever_hintfile` specifier in the configuration file.
