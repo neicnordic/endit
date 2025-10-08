@@ -111,7 +111,7 @@ remounts and thus optimizes access. For new installations, and when
 upgrading from ENDIT v1 to v2, note that:
 
 - The dCache pool size needs to be set lower than the actual file space
-  size, 1 TiB lower if the default `retriever_buffersize` is used.
+  size, 100 GiB lower if the default `retriever_buffersize` is used.
 - You need to allow a really large amount of concurrent restores and
   thus might need an even larger restore timeout. ENDIT has been verified with
   1 million requests on a single tape pool with modest hardware, central

@@ -244,7 +244,7 @@ my %confitems = (
 		canoverride => 1,
 	},
 	retriever_buffersize => {
-		default => 1000,
+		default => 100,
 		desc => "Size (in GiB) on filesystem reserved for the ENDIT retriever to buffer files during retrieval before they are processed by dCache.",
 		reqposint => 1,
 		canoverride => 1,
