@@ -277,8 +277,9 @@ the motivation that overrides are temporary.
 The ENDIT daemons generate statistics in JSON and Prometheus
 `node_exporter` formatted files, by default in the `/run/endit`
 directory. The current implementation dumps the ENDIT internals
-unprocessed, sizes are generally GiB denoted by `_gib` in the metric
-name. The best documentation for now are the ENDIT daemon scripts,
+unprocessed, sizes are generally bytes denoted by `_bytes` in the metric
+name. The best documentation for now are the HELP texts in the generated
+metric files, and ENDIT daemon scripts,
 [UTSL](https://en.wiktionary.org/wiki/UTSL) :-)
 
 It is strongly recommended to set `desc-short` in `endit.conf` to match
@@ -287,7 +288,7 @@ unique `hsm` tags in order to be able to differentiate metrics on hosts
 running multiple pools.
 
 When using `node_exporter`, the suggested implementation is to simply
-symlink the ENDIT `.prom` into your `node_exporter` directory.
+symlink the ENDIT `.prom` files into your `node_exporter` directory.
 
 # Migration and/or decommission
 
