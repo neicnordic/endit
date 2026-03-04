@@ -766,7 +766,7 @@ while(1) {
 				}
 				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
-				my @cmd = ('dsmc','retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile","$conf{dir_in}/");
+				my @cmd = ($conf{dsmc_executable},'retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile","$conf{dir_in}/");
 				my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
 				$cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
 				printlog "Executing: $cmdstr" if($conf{debug});
@@ -813,7 +813,7 @@ while(1) {
 						push @out, $_;
 
 						if(/^Action\s+\[.*\]\s+:/) {
-							printlog "dsmc prompt detected, aborting";
+							printlog "$conf{dsmc_executable} prompt detected, aborting";
 							kill("KILL", $dsmcpid);
 							last;
 						}
@@ -822,7 +822,7 @@ while(1) {
 
 				}
 				if(!close($dsmcfh) && $!) {
-					warn "closing pipe from dsmc: $!";
+					warn "closing pipe from $conf{dsmc_executable}: $!";
 				}
 				if($? == 0) {
 					my $duration = time()-$execstart;
@@ -832,7 +832,7 @@ while(1) {
 					printlog "Retrieve operation from volume $tape successful, $sizestats took $duration seconds, average rate $speedstats";
 					exit 0;
 				} else {
-					my $msg = "dsmc retrieve failure volume $tape file list $listfile: ";
+					my $msg = "$conf{dsmc_executable} retrieve failure volume $tape file list $listfile: ";
 					if ($? == -1) {
 						$msg .= "failed to execute: $!";
 					}
@@ -845,10 +845,10 @@ while(1) {
 					printlog "$msg";
 
 					foreach my $errmsg (@errmsgs) {
-						printlog "dsmc error message: $errmsg";
+						printlog "$conf{dsmc_executable} error message: $errmsg";
 					}
 					if($conf{verbose}) {
-						printlog "dsmc output: " . join("\n", @out);
+						printlog "$conf{dsmc_executable} output: " . join("\n", @out);
 					}
 
 					# Check if we got any files of

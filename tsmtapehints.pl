@@ -94,13 +94,13 @@ my $hintfiletmp = $hftmp->filename;
 
 my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 push @dsmcopts, split(/, /, $conf{'dsmcopts'});
-my @cmd = ('dsmc','query','archive','-filesonly','-detail',@dsmcopts,"$conf{dir_out}/*");
+my @cmd = ($conf{dsmc_executable},'query','archive','-filesonly','-detail',@dsmcopts,"$conf{dir_out}/*");
 my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
 $cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
 
 printlog "Executing: $cmdstr" if($conf{debug});
 
-$dsmcpid = open(my $dsmcfh, "-|", $cmdstr) || die "can't start dsmc: $!";
+$dsmcpid = open(my $dsmcfh, "-|", $cmdstr) || die "can't start $conf{dsmc_executable}: $!";
 
 my %tapelist;
 
@@ -198,15 +198,15 @@ while(<$dsmcfh>) {
 }
 
 if(!close($dsmcfh) && $!) {
-	die "closing pipe from dsmc: $!";
+	die "closing pipe from $conf{dsmc_executable}: $!";
 }
 elsif($? != 0) {
-	my $msg = "dsmc query archive failure: ";
+	my $msg = "$conf{dsmc_executable} query archive failure: ";
 	if ($? == -1) {
 		$msg .= "failed to execute: $!";
 	}
 	elsif ($? & 127) {
-		$msg .= sprintf "dsmc died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
+		$msg .= sprintf "$conf{dsmc_executable} died with signal %d, %s coredump", ($? & 127),  ($? & 128) ? 'with' : 'without';
 	}
 	else {
 		my $rc = $? >> 8;
@@ -216,12 +216,12 @@ elsif($? != 0) {
 			$msg = undef;
 		}
 		else {
-			$msg .= sprintf "dsmc exited with value %d", $rc;
+			$msg .= sprintf "$conf{dsmc_executable} exited with value %d", $rc;
 		}
 	}
 	if($msg) {
 		foreach my $errmsg (@errmsgs) {
-			warn "dsmc error message: $errmsg";
+			warn "$conf{dsmc_executable} error message: $errmsg";
 		}
 
 		die "$msg, aborting...";

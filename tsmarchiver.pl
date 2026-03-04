@@ -184,7 +184,7 @@ sub spawn_worker {
 
 	my @dsmcopts = split(/, /, $conf{'dsmcopts'});
 
-	my @cmd = ('dsmc','archive','-deletefiles', @dsmcopts,
+	my @cmd = ($conf{dsmc_executable},'archive','-deletefiles', @dsmcopts,
 		"-description=$description","-filelist=$filelist");
 	my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
 	$cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
@@ -217,30 +217,30 @@ sub spawn_worker {
 		my $stats = sprintf("%.2f MiB/s (%.2f files/s)", ${usage_bytes}/(1024*1024)/$duration, $numfiles/$duration);
 		printlog "Archive operation successful, duration $duration seconds, average rate $stats";
 		if($conf{debug}) {
-			printlog "dsmc output: " . join("\n", @out);
+			printlog "$conf{dsmc_executable} output: " . join("\n", @out);
 		}
 		# files migrated to tape without issue
 		exit 0;
 	} else {
 		# something went wrong. log and hope for better luck next time?
-		my $msg = "dsmc archive failure: ";
+		my $msg = "$conf{dsmc_executable} archive failure: ";
 		if ($? == -1) {
 			$msg .= "failed to execute: $!";
 		}
 		elsif ($? & 127) {
-			$msg .= sprintf "dsmc died with signal %d, %s coredump",
+			$msg .= sprintf "$conf{dsmc_executable} died with signal %d, %s coredump",
 			       ($? & 127),  ($? & 128) ? 'with' : 'without';
 		}
 		else {
-			$msg .= sprintf "dsmc exited with value %d", $? >> 8;
+			$msg .= sprintf "$conf{dsmc_executable} exited with value %d", $? >> 8;
 		}
 		printlog "$msg";
 
 		foreach my $errmsg (@errmsgs) {
-			printlog "dsmc error message: $errmsg";
+			printlog "$conf{dsmc_executable} error message: $errmsg";
 		}
 		if($conf{verbose}) {
-			printlog "dsmc output: " . join("\n", @out);
+			printlog "$conf{dsmc_executable} output: " . join("\n", @out);
 		}
 
 		# Avoid spinning on persistent errors.

@@ -93,7 +93,7 @@ sub rundelete {
 	my($out, $err);
 	my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 	push @dsmcopts, split(/, /, $conf{'dsmcopts'});
-	my @cmd = ('dsmc','delete','archive','-noprompt',
+	my @cmd = ($conf{dsmc_executable},'delete','archive','-noprompt',
 		@dsmcopts,"-filelist=$filelist");
 	my $cmdstr = "ulimit -t $conf{dsmc_cpulimit} ; ";
 	$cmdstr .= "exec '" . join("' '", @cmd) . "' 2>&1";
@@ -115,7 +115,7 @@ sub rundelete {
 		}
 	}
 	if(!close($dsmcfh) && $!) {
-		warn "closing pipe from dsmc: $!";
+		warn "closing pipe from $conf{dsmc_executable}: $!";
 	}
 
 	$dsmcpid = undef;
@@ -173,7 +173,7 @@ sub rundelete {
 		}
 		if($reallybroken) {
 			# something went wrong. log and hope for better luck next time?
-			my $msg = "dsmc delete failure: ";
+			my $msg = "$conf{dsmc_executable} delete failure: ";
 			if ($? == -1) {
 				$msg .= "failed to execute: $!";
 			}
@@ -185,11 +185,11 @@ sub rundelete {
 			}
 			printlog "$msg";
 			if($conf{verbose}) {
-				printlog "dsmc output: " . join("\n", @out);
+				printlog "$conf{dsmc_executable} output: " . join("\n", @out);
 			}
 			else {
 				# At a minimum, log the errors!
-				printlog "dsmc errors: " . join("\n", @errmsgs);
+				printlog "$conf{dsmc_executable} errors: " . join("\n", @errmsgs);
 			}
 
 			# Return successful deletions, if any.

@@ -139,9 +139,14 @@ my %confitems = (
 		# Used for all commands except archive.
 		# ", "-delimited list.
 	},
+	dsmc_executable => {
+		default => "dsmc",
+		desc => 'The name of the dsmc executable.',
+	},
 	dsmc_cpulimit => {
 		default => 172800,
 		desc => 'Default CPU ulimit for spawned dsmc processes (seconds)',
+		reqposint => 1,
 	},
 	sleeptime => {
 		default => 60,
