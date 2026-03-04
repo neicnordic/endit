@@ -211,6 +211,16 @@ my %confitems = (
 		# MUST NOT be changed.
 		default => 0,
 	},
+	'emulate-dsmc_archivedir' => {
+		desc => 'Location of the "tape library" root with asnode subdirs',
+		default => '/srv/archive',
+		canoverride => 1,
+	},
+	'emulate-dsmc_bwlimit' => {
+		desc => 'Bandwidth limit passed to rsync, 0 for no limit',
+		default => '10M',
+		canoverride => 1,
+	},
 	retriever_maxworkers => {
 		default => 1,
 		example => 3,
