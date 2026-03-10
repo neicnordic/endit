@@ -20,20 +20,28 @@ use warnings;
 use strict;
 use JSON;
 use Cwd qw(abs_path);
+use List::Util qw(max);
 
 use Getopt::Long;
 Getopt::Long::Configure (qw(no_ignore_case no_auto_abbrev));
+
+#FIXME: Remove
+use Data::Dumper;
+$Data::Dumper::Indent = 1;
+$Data::Dumper::Sortkeys = 1;
 
 my %opts = (
 	# JSON formatted defaults file, to override the example defaults
 	# for easy multi-usecase scenarios.
 	defaultsfile	=> undef,
-	getdefaults	=> undef,
+	writedefaults	=> undef,
 
 	# Create commands to issue reads from this pool
 	cmdtemplate	=> '\s %src% rh restore %id%',
 	# %src% identifier default for above
 	cmdsrc		=> 'sourcepool',
+	# %target% identifier default for above
+	cmdtarget	=> undef,
 	# Source tape hints file
 	sourcehintfile	=> undef,
 	# Optional destination tape hints file
@@ -41,7 +49,11 @@ my %opts = (
 
 	# Output command files in this directory
 	outdir		=> "list",
+	# Or to this JSON file instead
+	outjson		=> undef,
+	# Overwrite existing output
 	force		=> 0,
+
 
 	# Optional: Chunk tape reads by this many bytes, usecase for rate
 	# limiting reads is to not run out of read tape pool buffer size.
@@ -60,13 +72,15 @@ sub usage()
 	print <<EOH;
 Usage:
 	--defaults, -j		Defaults commented JSON file (optional)
-	--getdefaults, -J	Only show defaults in commented JSON file format
+	--writedefaults, -w	Write defaults to commented JSON file
 	--sourcehints, -s	Source hint file (required)
 	--desthints, -d		Destination hint file (optional)
 	--cmdtemplate, -c	Command template (default example: $opts{cmdtemplate})
 	--srcarg, -S		%src% argument for the template (default example: $opts{cmdsrc})
+	--targetarg, -T		%target% argument for the template (optional)
 	--outdir, -D		Output directory (default: $opts{outdir})
-	--force, -f		Force using an existing output directory
+	--outjson, -O		Output as JSON to this file instead (optional)
+	--force, -f		Force using an existing output directory/file
 	--splitby, -b		Split lists by this size in bytes (default: $opts{splitby})
 EOH
 	exit 1;
@@ -74,13 +88,15 @@ EOH
 
 GetOptions (
 		"defaults|j=s" => \$opts{defaultsfile},
-		"getdefaults|J=s" => \$opts{getdefaults},
+		"writedefaults|w=s" => \$opts{writedefaults},
 		"sourcehints|s=s" => \$opts{sourcehintfile},
 		"desthints|d=s" => \$opts{desthintfile},
 		"cmdtemplate|commandtemplate|c=s" => \$opts{cmdtemplate},
 		"srcarg|cmdsrc|S=s" => \$opts{cmdsrc},
+		"targetarg|cmdtarget|T=s" => \$opts{cmdtarget},
 		"outdir|D=s" => \$opts{outdir},
 		"force|f" => \$opts{force},
+		"outjson|O=s" => \$opts{outjson},
 		"splitby|b=i" => \$opts{splitby},
 		"help|h" => \$help,
 	)
@@ -124,7 +140,7 @@ if($opts{defaultsfile}) {
 	}
 
 	# Apply the defaults. No syntax checking of the values read.
-	foreach my $v (qw(sourcehintfile desthintfile cmdtemplate cmdsrc outdir splitby force))
+	foreach my $v (qw(sourcehintfile desthintfile cmdtemplate cmdsrc cmdtarget outdir splitby outjson force))
 	{
 		next unless($defaults->{$v});
 
@@ -134,20 +150,25 @@ if($opts{defaultsfile}) {
 
 usage() if($help);
 
-if($opts{getdefaults}) {
+if($opts{cmdtemplate} =~ /%target%/ and !$opts{cmdtarget}) {
+	die "Using %target% without defining it, specify with -T";
+}
+
+if($opts{writedefaults}) {
 	my $h;
 
-	foreach my $v (qw(sourcehintfile desthintfile cmdtemplate cmdsrc outdir splitby force))
+	foreach my $v (qw(sourcehintfile desthintfile cmdtemplate cmdsrc cmdtarget outdir splitby outjson force))
 	{
 		next if($v eq 'cmdsrc' and $opts{cmdtemplate} !~ /%src%/);
+		next if($v eq 'cmdtarget' and $opts{cmdtemplate} !~ /%target%/);
 		$h->{$v} = $opts{$v} if($opts{$v});
 	}
 
-	if(-e $opts{getdefaults}) {
-		die "Cowardly refusing to overwrite $opts{getdefaults}";
+	if(-e $opts{writedefaults}) {
+		die "Cowardly refusing to overwrite $opts{writedefaults}";
 	}
 
-	open(my $out, '>', $opts{getdefaults}) or die "open $opts{getdefaults}: $!";
+	open(my $out, '>', $opts{writedefaults}) or die "open $opts{writedefaults}: $!";
 
 	my $me = abs_path($0);
 	print $out "#! $me -j\n";
@@ -155,15 +176,19 @@ if($opts{getdefaults}) {
 	print $out to_json($h, {canonical => 1, pretty => 1}) or die;
 	close $out or die "close $out: $!";
 
-	chmod(0755, $opts{getdefaults}) or die "chmod $opts{getdefaults}: $!";
+	chmod(0755, $opts{writedefaults}) or die "chmod $opts{writedefaults}: $!";
 
-	print "Wrote $opts{getdefaults} in commented JSON format containing current defaults\nExiting...\n";
+	print "Wrote $opts{writedefaults} in commented JSON format containing current defaults\nExiting...\n";
 	exit 0;
 }
 
 unless($opts{sourcehintfile}) {
 	warn "sourcehints required";
 	usage();
+}
+
+if($opts{splitby} <= 0) {
+	$opts{splitby} = ~0; # Effectively disabled
 }
 
 my $sourcehints;
@@ -196,24 +221,80 @@ if($opts{desthintfile}){
 	}
 }
 
-if(-d $opts{outdir}) {
-	die "Directory $opts{outdir} already exists, specify a non-existing directory with -D or override with -f" unless($opts{force});
+if($opts{outjson}) {
+	if(-f $opts{outjson}) {
+		die "File $opts{outjson} already exists, specify a non-existing file with -O or override with -f" unless($opts{force});
+	}
 }
 else {
-	mkdir $opts{outdir} or die "mkdir $opts{outdir}: $!";
-	print "Created directory $opts{outdir}\n";
+	if(-d $opts{outdir}) {
+		die "Directory $opts{outdir} already exists, specify a non-existing directory with -D or override with -f" unless($opts{force});
+	}
+	else {
+		mkdir $opts{outdir} or die "mkdir $opts{outdir}: $!";
+		print "Created directory $opts{outdir}\n";
+	}
 }
 
 my %size;
+my %list;
 
+# Build list of eligible items
 foreach my $id (sort { $sourcehints->{$a}{order} cmp $sourcehints->{$b}{order} }keys %$sourcehints) {
 	next if defined $desthints->{$id}{volid};
 	$size{$sourcehints->{$id}{volid}}+=$sourcehints->{$id}{size};
-	my $f = "$opts{outdir}/$sourcehints->{$id}{volid}" . sprintf(".%02d",$size{$sourcehints->{$id}{volid}}/$opts{splitby});
-	open(my $fh, ">>", $f) or die "open $f: $!";
-	my $s = $opts{cmdtemplate};
-	$s =~ s/%src%/$opts{cmdsrc}/g;
-	$s =~ s/%id%/$id/g;
-	print $fh  "$s\n";
-	close($fh) or die "Closing $f: $!";
+	push @{$list{$sourcehints->{$id}{volid}}{int($size{$sourcehints->{$id}{volid}}/$opts{splitby})}}, $id;
+}
+
+print Dumper(\%list) if($ENV{DEBUG});
+
+# Output JSON if that's preferred
+if($opts{outjson}) {
+	# A single unprocessed JSON file for the user to process as they see fit
+	open(my $fh, ">", $opts{outjson}) or die "open $opts{outjson}: $!";
+	print $fh encode_json(\%list);
+	close($fh) or die "Closing $opts{outjson}: $!";
+	print "Created file $opts{outjson}\n";
+	exit 0;
+}
+
+# Find width needed
+my $w = 0;
+foreach my $v (sort keys %list) {
+	foreach my $n (sort keys %{$list{$v}}) {
+		$w = max($w, length sprintf("%d", $n));
+	}
+}
+
+# Process and provide text file based output
+foreach my $v (sort keys %list) {
+	foreach my $n (sort keys %{$list{$v}}) {
+		my $ns = sprintf("%0${w}d", $n);
+		my $f = "$opts{outdir}/$v.$ns";
+		open(my $fh, ">", $f) or die "open $f: $!";
+
+		if($opts{cmdtemplate} =~ /%idlist%/) {
+			# %idlist% -  a single command per tape with comma
+			# separated list of all pnfs id:s.
+			my $idlist=join(",", @{$list{$v}{$n}});
+			my $s = $opts{cmdtemplate};
+			$s =~ s/%src%/$opts{cmdsrc}/g;
+			$s =~ s/%idlist%/$idlist/;
+			$s =~ s/%target%/$opts{cmdtarget}/g if($opts{cmdtarget});
+			print $fh  "$s\n";
+		}
+		else {
+			# %id% - multiple commands per tape, each with a single
+			# pnfs per command.
+			foreach my $id (@{$list{$v}{$n}}) {
+				my $s = $opts{cmdtemplate};
+				$s =~ s/%src%/$opts{cmdsrc}/g;
+				$s =~ s/%id%/$id/g;
+				$s =~ s/%target%/$opts{cmdtarget}/g if($opts{cmdtarget});
+				print $fh  "$s\n";
+			}
+		}
+
+		close($fh) or die "Closing $f: $!";
+	}
 }
