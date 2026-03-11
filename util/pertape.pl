@@ -21,6 +21,7 @@ use strict;
 use JSON;
 use Cwd qw(abs_path);
 use List::Util qw(max);
+use File::Basename;
 
 use Getopt::Long;
 Getopt::Long::Configure (qw(no_ignore_case no_auto_abbrev));
@@ -30,7 +31,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Sortkeys = 1;
 
-my %opts = (
+my %optsdefault = (
 	# JSON formatted defaults file, to override the example defaults
 	# for easy multi-usecase scenarios.
 	defaultsfile	=> undef,
@@ -64,25 +65,24 @@ my %opts = (
 	splitby		=> 0,
 );
 
+my %opts;
 
 my($help);
 
 sub usage()
 {
-	print <<EOH;
-Usage:
-	--defaults, -j		Defaults commented JSON file (optional)
-	--writedefaults, -w	Write defaults to commented JSON file
-	--sourcehints, -s	Source hint file (required)
-	--desthints, -d		Destination hint file (optional)
-	--cmdtemplate, -c	Command template (default example: $opts{cmdtemplate})
-	--srcarg, -S		%src% argument for the template (default example: $opts{cmdsrc})
-	--targetarg, -T		%target% argument for the template (optional)
-	--outdir, -D		Output directory (default: $opts{outdir})
-	--outjson, -O		Output as JSON to this file instead (optional)
-	--force, -f		Force using an existing output directory/file
-	--splitby, -b		Split lists by this size in bytes (default: $opts{splitby})
-EOH
+	print basename($0)." with ".($opts{defaultsfile}//"default")." settings loaded.\nUsage:\n";
+	print "  --defaults, -j	Defaults from commented JSON file (".($opts{defaultsfile}//"optional").")\n";
+	print "  --writedefaults, -w	Write defaults to commented JSON file\n";
+	print "  --sourcehints, -s	Source hint file (".($opts{sourcehintfile}//"required").")\n";
+	print "  --desthints, -d	Destination hint file (".($opts{desthintfile}//"optional").")\n";
+	print "  --cmdtemplate, -c	Command template ($opts{cmdtemplate})\n";
+	print "  --srcarg, -S		%src% argument for the template ($opts{cmdsrc})\n";
+	print "  --targetarg, -T	%target% argument for the template (".($opts{cmdtarget}//"optional").")\n";
+	print "  --outdir, -D		Output directory ($opts{outdir})\n";
+	print "  --outjson, -O		Output as JSON to this file instead (".($opts{outjson}//"optional").")\n";
+	print "  --force, -f		Force using an existing output directory/file (".($opts{force}?"true":"default false").")\n";
+	print "  --splitby, -b		Split lists by this size in bytes (".($opts{splitby}?"$opts{splitby}":"default 0/disabled").")\n";
 	exit 1;
 }
 
@@ -95,8 +95,8 @@ GetOptions (
 		"srcarg|cmdsrc|S=s" => \$opts{cmdsrc},
 		"targetarg|cmdtarget|T=s" => \$opts{cmdtarget},
 		"outdir|D=s" => \$opts{outdir},
-		"force|f" => \$opts{force},
 		"outjson|O=s" => \$opts{outjson},
+		"force|f" => \$opts{force},
 		"splitby|b=i" => \$opts{splitby},
 		"help|h" => \$help,
 	)
@@ -106,13 +106,12 @@ if(scalar(@ARGV) > 0) {
 	die("Failed to parse command line arguments (2)");
 }
 
-my $defaults;
-
 # Load the defaults file before showing usage so the correct overridden
 # defaults are shown.
 if($opts{defaultsfile}) {
 	my $df;
 	my $infile;
+	my $defaults;
 
 	foreach my $f ($opts{defaultsfile},"$opts{defaultsfile}.json") {
 		if(open $df, '<', $f) {
@@ -148,6 +147,15 @@ if($opts{defaultsfile}) {
 	}
 }
 
+
+# Finally apply the defaults unless overridden.
+foreach my $k (keys %optsdefault) {
+	next unless(defined($optsdefault{$k}));
+	next if($opts{$k});
+
+	$opts{$k} = $optsdefault{$k};
+}
+
 usage() if($help);
 
 if($opts{cmdtemplate} =~ /%target%/ and !$opts{cmdtarget}) {
@@ -161,7 +169,10 @@ if($opts{writedefaults}) {
 	{
 		next if($v eq 'cmdsrc' and $opts{cmdtemplate} !~ /%src%/);
 		next if($v eq 'cmdtarget' and $opts{cmdtemplate} !~ /%target%/);
-		$h->{$v} = $opts{$v} if($opts{$v});
+		next unless(exists $opts{$v});
+		next unless($opts{$v});
+		next if($optsdefault{$v} and $optsdefault{$v} eq $opts{$v});
+		$h->{$v} = $opts{$v};
 	}
 
 	if(-e $opts{writedefaults}) {
@@ -273,13 +284,21 @@ foreach my $v (sort keys %list) {
 		my $f = "$opts{outdir}/$v.$ns";
 		open(my $fh, ">", $f) or die "open $f: $!";
 
-		if($opts{cmdtemplate} =~ /%idlist%/) {
+		if($opts{cmdtemplate} =~ /%id(|q)list%/) {
 			# %idlist% -  a single command per tape with comma
-			# separated list of all pnfs id:s.
-			my $idlist=join(",", @{$list{$v}{$n}});
+			# separated IDs.
+			# %idqlist% - a single command per tape with quoted
+			# comma separated IDs.
+			my $idlist;
+			if($1 eq 'q') {
+				$idlist="'".join("','", @{$list{$v}{$n}})."'";
+			}
+			else {
+				$idlist=join(",", @{$list{$v}{$n}});
+			}
 			my $s = $opts{cmdtemplate};
 			$s =~ s/%src%/$opts{cmdsrc}/g;
-			$s =~ s/%idlist%/$idlist/;
+			$s =~ s/%id(|q)list%/$idlist/;
 			$s =~ s/%target%/$opts{cmdtarget}/g if($opts{cmdtarget});
 			print $fh  "$s\n";
 		}
