@@ -1,0 +1,5 @@
+#! /opt/endit/util/pertape.pl -j
+# pertape.pl - defaults for doing cacheinfoof on files
+{
+   "cmdtemplate" : "\\s cacheinfoof %id%"
+}

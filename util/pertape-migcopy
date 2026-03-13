@@ -1,0 +1,6 @@
+#! /opt/endit/util/pertape.pl -j
+# pertape.pl - defaults for starting a migration job for all files
+{
+   "cmdtarget" : "tpool1 tpool2",
+   "cmdtemplate" : "\\s %src% migration copy id=pertape -pnfsid=%idlist% -target=pool %target%"
+}

@@ -1,0 +1,5 @@
+#! /opt/endit/util/pertape.pl -j
+# pertape.pl - defaults for just listing the PNFS IDs of files
+{
+   "cmdtemplate" : "%id%"
+}

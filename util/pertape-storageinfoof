@@ -1,0 +1,5 @@
+#! /opt/endit/util/pertape.pl -j
+# /pertape.pl - defaults for doing storageinfoof for all files
+{
+   "cmdtemplate" : "\\s storageinfoof %id%"
+}

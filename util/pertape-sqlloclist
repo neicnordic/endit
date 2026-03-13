@@ -1,0 +1,6 @@
+#! /opt/endit/util/pertape.pl -j
+# pertape.pl - defaults to generate an SQL expression for the dCache Chimera
+#              database that lists the location of all files.
+{
+   "cmdtemplate" : "SELECT ti.ipnfsid,tl.ilocation FROM t_inodes ti,t_locationinfo tl WHERE ti.ipnfsid IN(%idqlist%) AND ti.inumber=tl.inumber;"
+}
