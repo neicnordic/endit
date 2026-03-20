@@ -96,7 +96,7 @@ exclude.fs      /grid/pool*/.../*
 
 ## dCache
 
-The [ENDIT dCache plugin](https://github.com/neicnordic/dcache-endit-provider/)
+The [dCache ENDIT Provider plugin](https://github.com/neicnordic/dcache-endit-provider/)
 needs to be installed on the pool.
 
 To get good store performance the dCache pool must be tuned for continuous
