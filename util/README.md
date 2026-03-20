@@ -64,11 +64,11 @@ that can be provided to pertape.pl with arguments.
 
 | Argument | Origin | Effect |
 | -------- | ----- | ------ |
-| %id% | Hint file | Replaced with PNFS ID, one command per ID. |
-| %idlist% | Hint file | Replaced with a comma separated list of PNFS ID:s, one command with all IDs |
-| %idqlist% | Hint file | Replaced with a quoted comma separated list of PNFS ID:s, one command with all ID:s. Useful with SQL IN(...) constructs. |
-| %src% | Argument | Replaced with the provided string passed using the `-S` flag, defaults to `sourcepool`. |
-| %target% | Argument | Replaced with the provides string passed using the `-T` flag. |
+| `%id%` | Hint file | Replaced with PNFS ID, one command per ID. |
+| `%idlist%` | Hint file | Replaced with a comma separated list of PNFS ID:s, one command with all IDs |
+| `%idqlist%` | Hint file | Replaced with a quoted comma separated list of PNFS ID:s, one command with all ID:s. Useful with SQL `IN(...)` constructs. |
+| `%src%` | Argument | Replaced with the provided string passed using the `-S` flag, defaults to `sourcepool`. |
+| `%target%` | Argument | Replaced with the provides string passed using the `-T` flag. |
 
 The command template and arguments are most useful when combined with
 the defaults file feature.
