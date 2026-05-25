@@ -2,6 +2,8 @@
 Description=ENDIT deleter process
 Documentation=https://github.com/neicnordic/endit
 After=network-online.target nss-lookup.target nss-user-lookup.target remote-fs.target
+After=dcache.target
+PartOf=endit.target
 
 [Service]
 Type=simple

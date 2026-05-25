@@ -1,13 +1,6 @@
 [Unit]
-Description=ENDIT running
+Description=Target to start/stop the ENDIT daemons
 Documentation=https://github.com/neicnordic/endit
-After=network-online.target nss-lookup.target nss-user-lookup.target remote-fs.target
-BindsTo=endit-archiver.service
-BindsTo=endit-deleter.service
-BindsTo=endit-retriever.service
 
 [Install]
 WantedBy=multi-user.target
-Also=endit-archiver.service
-Also=endit-deleter.service
-Also=endit-retriever.service
