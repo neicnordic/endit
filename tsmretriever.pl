@@ -743,27 +743,33 @@ while(1) {
 					}
 				}
 
-				$SIG{INT} = sub { printlog("Child got SIGINT, exiting..."); killchild(); exit; };
-				$SIG{QUIT} = sub { printlog("Child got SIGQUIT, exiting..."); killchild(); exit; };
-				$SIG{TERM} = sub { printlog("Child got SIGTERM, exiting..."); killchild(); exit; };
-				$SIG{HUP} = sub { printlog("Child got SIGHUP, exiting..."); killchild(); exit; };
+				# Remove incomplete leftovers of retrieved
+				# files.
+				sub remove_incomplete() {
+					while(my($f, $s) = each(%lfinfo)) {
+						next if($s < 0);
+						my $fn = "$conf{dir_in}/$f";
+						my $fsize = (stat($fn))[7];
+						if(defined($fsize) && $fsize != $s) {
+							printlog("On-disk file $fn size $fsize doesn't match request size $s, removing.") if($conf{verbose});
+							if(!unlink($fn) && !$!{ENOENT}) {
+								printlog "unlink '$fn' failed: $!";
+							}
+						}
+					}
+				}
+
+				$SIG{INT} = sub { printlog("Child got SIGINT, exiting..."); killchild(); remove_incomplete(); exit; };
+				$SIG{QUIT} = sub { printlog("Child got SIGQUIT, exiting..."); killchild(); remove_incomplete(); exit; };
+				$SIG{TERM} = sub { printlog("Child got SIGTERM, exiting..."); killchild(); remove_incomplete(); exit; };
+				$SIG{HUP} = sub { printlog("Child got SIGHUP, exiting..."); killchild(); remove_incomplete(); exit; };
 
 
 				# printlog():s in child gets the child pid
 				printlog "Trying to retrieve files from volume $tape using file list $listfile";
 
-				# Check for incomplete leftovers of retrieved files
-				while(my($f, $s) = each(%lfinfo)) {
-					next if($s < 0);
-					my $fn = "$conf{dir_in}/$f";
-					my $fsize = (stat($fn))[7];
-					if(defined($fsize) && $fsize != $s) {
-						printlog("On-disk file $fn size $fsize doesn't match request size $s, removing.") if($conf{verbose});
-						if(!unlink($fn) && !$!{ENOENT}) {
-							printlog "unlink '$fn' failed: $!";
-						}
-					}
-				}
+				remove_incomplete();
+
 				my @dsmcopts = split(/, /, $conf{'dsmc_displayopts'});
 				push @dsmcopts, split(/, /, $conf{'dsmcopts'});
 				my @cmd = ($conf{dsmc_executable},'retrieve','-replace=no','-followsymbolic=yes',@dsmcopts, "-filelist=$listfile","$conf{dir_in}/");
