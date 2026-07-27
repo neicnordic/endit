@@ -223,11 +223,13 @@ sub loadrequest($) {
 
 
 # Clean a directory.
-# Removes files older than $maxage days in directory $dir.
+# Removes files older than $maxage hours in directory $dir.
 sub cleandir($$) {
-	my ($dir, $maxagedays) = @_;
+	my ($dir, $maxagehours) = @_;
 
-	my $maxage = time() - $maxagedays*86400;
+	printlog "cleandir: dir: $dir maxagehours: $maxagehours" if $conf{debug};
+
+	my $maxage = time() - $maxagehours*3600;
 
 	opendir(my $rd, $dir) || die "opendir $dir: $!";
 
@@ -408,7 +410,8 @@ printlog("$0$verstr: Starting$desclong...");
 # Clean up stale remnants left by earlier crashes/restarts, do the request list
 # directory only on startup.
 my $lastclean = 0;
-cleandir($conf{dir_requestlists}, 7);
+cleandir($conf{dir_requestlists}, 7*24);
+my $lastcleanhr = 7*24;
 
 my $sleeptime = 1; # Want to start with quickly doing a full cycle.
 
@@ -423,7 +426,8 @@ while(1) {
 
 	# Clean in dir periodically
 	if($lastclean + 86400 < time()) {
-		cleandir($conf{dir_in}, 7);
+		$lastcleanhr = 7*24;
+		cleandir($conf{dir_in}, $lastcleanhr);
 		$lastclean = time();
 	}
 
@@ -516,6 +520,18 @@ while(1) {
 	readconfoverride('retriever');
 
 	my ($dobackoff, $in_avail_bytes) = checkfree();
+	if($dobackoff == CF_BACKLOG) {
+		# Reduce size of indir, based on how much was last cleaned to
+		# be more aggressive on each iteration.
+		if($lastcleanhr > 1) {
+			$lastcleanhr = int($lastcleanhr/2);
+			cleandir($conf{dir_in}, $lastcleanhr);
+			$lastclean = time();
+			sleep(1);
+			next;
+		}
+	}
+
 	my $in_fill_pct = ($conf{retriever_buffersize}-to_gib($in_avail_bytes)) / $conf{retriever_buffersize};
 	$in_fill_pct = int(max($in_fill_pct, 0)*100);
 	printlog sprintf("$conf{dir_in} avail %d bytes, fill $in_fill_pct %%, dobackoff: $dobackoff", $in_avail_bytes) if($conf{debug});
