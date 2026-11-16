@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #   tsm_getvolumecontent.pl - helper script to show tsm tape contents
-#   Copyright (C) 2012-2022 <Niklas.Edmundsson@hpc2n.umu.se>
+#   Copyright (C) 2012-2026 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -52,7 +52,7 @@ sub debug
 # Main
 #
 
-getopts('hf:Dku:p:N:d', \%opts) || die "Argument error";
+getopts('hf:Dkc:u:p:N:d', \%opts) || die "Argument error";
 
 if(defined($opts{'h'})) {
     print <<EOH;
@@ -62,8 +62,9 @@ if(defined($opts{'h'})) {
         -f file - Destination file to store result in (REQUIRED)
         -D      - Debug output
         -k      - Keep file path
-        -u id   - TSM User ID (REQUIRED)
-        -p pass - File with cleartext password for above user ID (REQUIRED)
+        -c file - TSM credentials file (REQUIRED)
+        -u id   - TSM User ID (DEPRECATED)
+        -p pass - File with cleartext password for above user ID (DEPRECATED)
         -N node - Proxynode name to generate list for (REQUIRED)
 EOH
     exit 0;
@@ -72,11 +73,20 @@ EOH
 #############
 # NORMAL MODE
 
-foreach my $o (qw(u p N f)) {
+foreach my $o (qw(N f)) {
     die "$0: option -$o required" unless(defined($opts{$o}));
 }
 
-setauth(id => $opts{u}, passfile => $opts{p});
+if($opts{c}) {
+    setcred($opts{c});
+}
+elsif($opts{u} && $opts{p}) {
+    warn "Options -u and -p are deprecated, please use -c instead";
+    setauth(id => $opts{u}, passfile => $opts{p});
+}
+else {
+    die "$0: option -c required";
+}
 
 debug "Starting:";
 

@@ -1,5 +1,5 @@
 #   HPC2NTSMUtil - simplify using dsmadmc to interact with TSM server
-#   Copyright (C) 2012-2021 <Niklas.Edmundsson@hpc2n.umu.se>
+#   Copyright (C) 2012-2026 <Niklas.Edmundsson@hpc2n.umu.se>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use Carp;
 use Time::Local;
+use File::Temp qw /tempfile/;
 
 require Exporter;
 require AutoLoader;
@@ -31,6 +32,7 @@ require AutoLoader;
 # Do not simply export all your public functions/methods/constants.
 @EXPORT = qw(
     setauth
+    setcred
     dsm_cmd
     timestamp_to_time
     actdt_to_time
@@ -41,8 +43,7 @@ require AutoLoader;
 );
 $VERSION = '0.03';
 
-my $userid;
-my $password;
+my $credentialsfile;
 
 # Run a TSM administrative command
 # Argument: Command
@@ -57,12 +58,12 @@ sub dsm_cmd ($)
     my @result;
     my @diag;
 
-    if(!$userid || !$password) {
-        croak "setauth() not called before dsm_cmd";
+    if(!$credentialsfile) {
+        croak "setcred() not called before dsm_cmd()";
         return undef;
     }
     
-    if(!open($fh, "dsmadmc -tracefile=/dev/null -errorlogname=/dev/null -id=$userid -pa=$password -dataonly=yes -tabdelim \"$cmd\"|")) {
+    if(!open($fh, "dsmadmc -tracefile=/dev/null -errorlogname=/dev/null -credentialsfile=$credentialsfile -dataonly=yes -tabdelim \"$cmd\"|")) {
         croak "Failed 1 to invoke dsmadmc $cmd: $!";
         return undef;
     }
@@ -124,12 +125,29 @@ sub dsm_cmd ($)
     return @result;
 }
 
+# Set auth info, using a credential file as available since dsmadmc version
+# 8.1.20 (2023).
+# https://www.ibm.com/docs/en/storage-protect/8.1.20?topic=su-secure-your-administrator-id-password-by-using-credentials-file
+# Argument: Path to a credentials file with username and password.
+sub setcred($) {
+    $credentialsfile = shift;
 
+    # Verify that the auth works, and that the server is alive.
+    my @srvstat = dsm_cmd("select server_name from status");
+
+    if(!@srvstat || !defined($srvstat[0])) {
+        croak "Auth setup failed";
+    }
+}
+
+# DEPRECATED, use setcred() instead.
 # Set auth info
 # Argument: Hash with id == userid, passfile == file with password
 # Returns: servername, croaks on failure.
 sub setauth {
     my %args = (@_);
+
+     warnings::warnif("deprecated", "setauth is deprecated, update script to use setcred instead");
 
     croak "No id" unless($args{id});
 
@@ -140,16 +158,13 @@ sub setauth {
     }
     croak "No password" unless($args{password});
 
-    # Save data to our private variables
-    $userid = $args{id};
-    $password = $args{password};
+    # Create a temporary credentials file
+    my($fh, $fn) = tempfile(UNLINK => 1); # Delete on exit()
+    print $fh "$args{id}\n";
+    print $fh "$args{password}\n";
+    close($fh) or croak "Closing $fn: $!";
 
-    # Verify that the auth works, and that the server is alive.
-    my @srvstat = dsm_cmd("select server_name from status");
-    if(!@srvstat || !defined($srvstat[0])) {
-        croak "Auth setup failed";
-    }
-    return $srvstat[0];
+    return setcred($fn);
 }
 
 
